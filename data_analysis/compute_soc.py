@@ -5,7 +5,9 @@ import matplotlib.pyplot as plt
 import matplotlib
 import datetime
 import time
+import json
 
+from data_io import save_matrix, load_ev_data
 from utils import (
     convert_to_datetime, convert_to_timestamp, diff_in_hours, ts_to_index,
     index_to_ts, BASE_DATE
@@ -14,10 +16,12 @@ from preprocessing import clean_reservations
 
 
 def create_matrices(ev_reservation, ev_models, time_granularity):
-
-    # TODO: make parameters more flexible
+    """
+    Main function to produce station and SOC matrices
+    Takes a list of reservations as input, as well as ev specifications
+    Outputs discrete charging times and states at granularity time_granularity
+    """
     # kw - TODO: take into account that several cars may charge at that station
-
     available_charging_power = 11
     overall_slots = ts_to_index(
         "2020-07-31 23:59:59.999", time_granularity=time_granularity
@@ -45,6 +49,7 @@ def create_matrices(ev_reservation, ev_models, time_granularity):
     for_testing = np.zeros(num_vehicles, dtype=int)
     # track SOC necessary for following reservation (in kwh)
     veh_soc_next_booking = np.zeros(num_vehicles)
+    start_station_next_booking = np.zeros(num_vehicles) - 1
 
     # iterate over reservations in reversed order
     ev_reservation.sort_values(by="start_time", ascending=False, inplace=True)
@@ -53,8 +58,7 @@ def create_matrices(ev_reservation, ev_models, time_granularity):
         vehicle_no = row["vehicle_no"]
         start_time = row["start_time"]
         end_time = row["end_time"]
-        # TODO: test whether service reservations are missing
-        # start_station = row["start_station_no"]
+        start_station = row["start_station_no"]
         end_station = row["end_station_no"]
 
         if start_time >= end_time or res_no == 25657616 or res_no == 24615362:
@@ -64,7 +68,9 @@ def create_matrices(ev_reservation, ev_models, time_granularity):
                 res_no,
                 "Skip because of other overlapping reservations, and 0 km"
             )
-            assert row["drive_km"] == 0
+            assert start_station == end_station
+            if row["drive_km"] > 0:
+                print(row)
             continue
 
         # Get indices
@@ -83,12 +89,19 @@ def create_matrices(ev_reservation, ev_models, time_granularity):
         )
         if start_booking_index == end_booking_index:
             print(res_no, "Skip because starts and ends in the same time slot")
+            assert start_station == end_station
             if row["drive_km"] > 0:
                 print(ev_reservation.loc[res_no])
             continue
 
         # update the next-booking entry for this vehicle
         veh_next_booking_time[veh_index] = start_time
+
+        next_station = start_station_next_booking[veh_index]
+        if end_station != next_station and next_station != -1:
+            print(res_no, "Station mismatch")
+
+        start_station_next_booking[veh_index] = start_station
 
         # =================== Matrix 1 : where's the car =====================
         # check: sometimes there are duplicates / overlapping bookings
@@ -111,8 +124,6 @@ def create_matrices(ev_reservation, ev_models, time_granularity):
         # fill stations until next booking
         station_matrix[end_booking_index:next_booking_index,
                        veh_index] = end_station
-        # TODO: check whether station of next booking start is the same as the
-        # end station of the current booking
 
         # =================== Matrix 2 : what's the SOC =====================
         # soc needed for next booking
@@ -122,7 +133,12 @@ def create_matrices(ev_reservation, ev_models, time_granularity):
         assert brand_model in ev_models.index, f"model not known {brand_model}"
         battery_power = ev_models.loc[brand_model]["Leistung"]
         battery_capacity = ev_models.loc[brand_model]["Kapazität"]
-        # TODO: fill nans of battery capacity and power
+        assert (
+            not pd.isna(ev_models.loc[brand_model]["Reichweite"])
+        ), "Reichweite is NaN - edit ev_models"
+        assert (
+            not pd.isna(ev_models.loc[brand_model]["Kapazität"])
+        ), "capacity is NaN - edit ev_models"
         consumption_per_km = battery_capacity / ev_models.loc[brand_model][
             "Reichweite"]
         charging_power = min([available_charging_power, battery_power])
@@ -179,42 +195,12 @@ def create_matrices(ev_reservation, ev_models, time_granularity):
     return station_matrix, soc_matrix, reservation_matrix, index_to_vehicle
 
 
-def load_ev_data(path_clean_data):
-    reservation = pd.read_csv(
-        os.path.join(path_clean_data, "reservation.csv"),
-        index_col="reservation_no"
-    )
-    vehicle = pd.read_csv(
-        os.path.join(path_clean_data, "vehicle.csv"), index_col="vehicle_no"
-    )
-    ev_models = pd.read_csv(os.path.join(path_clean_data, "ev_models.csv")
-                            ).set_index(["brand_name", "model_name"])
-
-    # restrict to EVs for now
-    ev_reservation = reservation[reservation["energytypegroup"] == "Electro"]
-    ev_reservation = ev_reservation.merge(
-        vehicle, how="left", left_on="vehicle_no", right_index=True
-    )
-    ev_reservation = clean_reservations(ev_reservation)
-    return ev_reservation, ev_models
-
-
-def save_matrix(
-    matrix, index=None, columns=None, name="matrix", out_path="outputs"
-):
-    station_df = pd.DataFrame(
-        np.swapaxes(matrix, 1, 0), index=index, columns=columns
-    )
-    station_df.index.name = "vehicle_no"
-    station_df.to_csv(os.path.join(out_path, f"{name}.csv"))
-
-
 if __name__ == "__main__":
     out_path = "outputs"
     time_granularity = 0.5  # in reference to one hour, e.g. 0.5 = half an hour
 
     # Load data
-    ev_reservation, ev_models = load_ev_data("data_cleaned")
+    ev_reservation, ev_models = load_ev_data("postgis")
 
     # Run
     (station_matrix, soc_matrix, reservation_matrix, index_to_vehicle

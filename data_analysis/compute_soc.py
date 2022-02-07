@@ -131,16 +131,16 @@ def create_matrices(ev_reservation, ev_models, time_granularity):
         # get car capacity etc
         brand_model = (row["brand_name"], row["model_name"])
         assert brand_model in ev_models.index, f"model not known {brand_model}"
-        battery_power = ev_models.loc[brand_model]["Leistung"]
-        battery_capacity = ev_models.loc[brand_model]["Kapazität"]
+        battery_power = ev_models.loc[brand_model]["charge_power"]
+        battery_capacity = ev_models.loc[brand_model]["battery_capacity"]
         assert (
-            not pd.isna(ev_models.loc[brand_model]["Reichweite"])
-        ), "Reichweite is NaN - edit ev_models"
+            not pd.isna(ev_models.loc[brand_model]["range"])
+        ), "range is NaN - edit ev_models"
         assert (
-            not pd.isna(ev_models.loc[brand_model]["Kapazität"])
+            not pd.isna(ev_models.loc[brand_model]["battery_capacity"])
         ), "capacity is NaN - edit ev_models"
         consumption_per_km = battery_capacity / ev_models.loc[brand_model][
-            "Reichweite"]
+            "range"]
         charging_power = min([available_charging_power, battery_power])
         # 1) compute how much needs to be left at arrival, such that the next
         # booking is feasible

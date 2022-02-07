@@ -1,9 +1,8 @@
-brand_name,model_name,entries_count,Leistung,Kapazität,Reichweite
+brand_name,model_name,entries_count,charge_power,battery_capacity,range
 Aiways,U5,8,6.6,63,330
 Aiways,U5 Standard MY20,2,6.6,63,330
 Audi,A3 SB 40 TFSI e,3,3.7,8.8,50
 Audi,e-tron 50,4,22,95,400
-Austin,one,7,,,
 BMW,225 e PHEV,4,3.7,7.7,41
 BMW,i3,19,11,27,300
 Citroen,e-C4,3,11,50,260
@@ -18,12 +17,10 @@ MITSUBISHI,i-MiEV,24,3.7,16,160
 Mercedes-Benz,B 250 e,3,7.4,28,160
 Mercedes-Benz,eVito 129KB Tourer Pro 3200,8,7.2,41,150
 Mini,3door Cooper SE,3,11,36,270
-Mini,Cinquecento,2,,,
 Nissan,LEAF,6,4.6,24,199
 Nissan,e-NV200,4,4.6,24,167
 Opel,Ampera,11,3.7,16,40
 Opel,Ampera-e,12,7.4,60,520
-Opel,Astra,2,,,
 Opel,Corsa F e,6,7.4,50,330
 Peugeot,Ion,2,3.7,14.5,150
 Renault,Kangoo Ex. Maxi Z.E. R60 Bus,4,7.4,33,160
@@ -39,7 +36,6 @@ Renault,ZOE R135 Zen,282,22,52,386
 Seat,Mii electric,32,7.2,36.8,260
 Skoda,Enyaq iV 80 4x4 Loft,35,11,82,420
 Skoda,Enyaq iV80,53,11,82,420
-THINK,City,46,3.7,28.3,
 Tesla,Model 3,29,11,75,499
 Tesla,Model S 85,3,16.5,75,490
 Tesla,Model S 90,5,16.5,90,550

@@ -15,11 +15,16 @@ from utils import (
 from preprocessing import clean_reservations
 
 
-def create_matrices(ev_reservation, ev_models, time_granularity):
+def create_matrices(
+    ev_reservation, ev_models, time_granularity, mode="min_soc_drive"
+):
     """
     Main function to produce station and SOC matrices
     Takes a list of reservations as input, as well as ev specifications
     Outputs discrete charging times and states at granularity time_granularity
+
+    mode: min_soc_drive saves only the minimum soc (in kWh) for the next
+        reservation
     """
     # kw - TODO: take into account that several cars may charge at that station
     available_charging_power = 11
@@ -167,16 +172,22 @@ def create_matrices(ev_reservation, ev_models, time_granularity):
         needed_soc_trip = consumption_per_km * row["drive_km"]  # usage in kwh
         needed_soc_departure = needed_soc_trip + needed_soc_arrival
 
-        soc_matrix[
-            start_booking_index,
-            veh_index] = min(needed_soc_departure / battery_capacity, 1)
-        if (
-            end_booking_index <= overall_slots
-            and end_booking_index > start_booking_index
-        ):
+        if mode == "min_soc_drive":
+            soc_matrix[start_booking_index,
+                       veh_index] = min(needed_soc_trip, battery_capacity)
+        elif mode == "min_soc_anytime":
             soc_matrix[
-                end_booking_index - 1,
-                veh_index] = min(needed_soc_arrival / battery_capacity, 1)
+                start_booking_index,
+                veh_index] = min(needed_soc_departure / battery_capacity, 1)
+            if (
+                end_booking_index <= overall_slots
+                and end_booking_index > start_booking_index
+            ):
+                soc_matrix[
+                    end_booking_index - 1,
+                    veh_index] = min(needed_soc_arrival / battery_capacity, 1)
+        else:
+            raise NotImplementedError("mode not implemented")
         # update next-booking soc
         veh_soc_next_booking[veh_index] = needed_soc_departure
 
@@ -197,10 +208,10 @@ def create_matrices(ev_reservation, ev_models, time_granularity):
 
 if __name__ == "__main__":
     out_path = "outputs"
-    time_granularity = 0.5  # in reference to one hour, e.g. 0.5 = half an hour
+    time_granularity = 0.25  # in reference to one hour, e.g. 0.5 = half an hour
 
     # Load data
-    ev_reservation, ev_models = load_ev_data("postgis")
+    ev_reservation, ev_models = load_ev_data("data_cleaned")
 
     # Run
     (station_matrix, soc_matrix, reservation_matrix, index_to_vehicle

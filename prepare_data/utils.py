@@ -3,7 +3,8 @@ import numpy as np
 import datetime
 import time
 
-BASE_DATE = '2019-01-01 00:00:00.000'
+BASE_DATE = pd.to_datetime('2019-01-01 00:00:00.000')
+FINAL_DATE = pd.to_datetime("2020-07-31 23:59:59.999")
 
 
 def convert_to_datetime(x):
@@ -29,21 +30,20 @@ def diff_in_hours(ts1, ts2):
 
 
 def index_to_ts(index, time_granularity=0.25, base_date=BASE_DATE):
-    base_ts = convert_to_datetime(base_date)
     hours_of_index = pd.Timedelta(hours=index * time_granularity)
-    return base_ts + hours_of_index
+    return base_date + hours_of_index
 
 
-def ts_to_index(str_ts, time_granularity=0.25, base_date=BASE_DATE):
+def ts_to_index(ts, time_granularity=0.25, base_date=BASE_DATE):
     """
     Convert a string time into an index for the quarter hour
     """
-    if pd.isna(str_ts):
+    if pd.isna(ts):
         return pd.NA
-    base_ts = convert_to_datetime(base_date)
-    ts = convert_to_datetime(str_ts)
+    if isinstance(ts, str):
+        ts = convert_to_datetime(ts)
     diff_granularity = (ts -
-                        base_ts).total_seconds() / (3600 * time_granularity)
+                        base_date).total_seconds() / (3600 * time_granularity)
     # round to the granularity:
     ts_index = int(diff_granularity)
     # assert that the reversed result is correct

@@ -1,7 +1,10 @@
+from typing import Type
 import pandas as pd
 import numpy as np
 import datetime
 import time
+
+from utils import BASE_DATE, FINAL_DATE
 
 
 def get_corrected_end(row):
@@ -77,22 +80,37 @@ def clean_reservations(ev_reservation):
     Reservations have overlaps etc.
     Cleaned up here, TODO: move to preprocessing script
     """
-    print("length before ff removal", len(ev_reservation))
-    wo_ff = ev_reservation[ev_reservation["tripmode"] !=
-                           "FreeFloating (Rückgabe an einem beliebigen Ort)"
-                           ].reset_index()
-    print("length before cleaning", len(wo_ff))
-    wo_ff_new = wo_ff.groupby("vehicle_no").apply(get_corrected_per_veh)
-    print("length after cleaning", len(wo_ff_new))
-    wo_ff_new = wo_ff_new.rename(columns={
-        "vehicle_no": "vehicle_no_orig"
-    }).reset_index()
-    assert all(wo_ff_new["vehicle_no"] == wo_ff_new["vehicle_no_orig"])
-    wo_ff_new = wo_ff_new.drop(columns=["vehicle_no_orig", "level_1"]
-                               ).set_index("reservation_no")
+    # assert no free floating
+    assert all(
+        ev_reservation["tripmode"] !=
+        "FreeFloating (Rückgabe an einem beliebigen Ort)"
+    )
+    # remove the ones with drivekm =0
+    print("Number of ev reservaions before cleainng", len(ev_reservation))
+    ev_reservation.reset_index(inplace=True)
+    ev_reservation = ev_reservation[ev_reservation["drive_km"] > 0]
+    print("length after drive_km>0", len(ev_reservation))
 
-    # drop duplicates
-    wo_ff_new.drop(
+    # get new start and end time
+    ev_preprocessed = ev_reservation.groupby("vehicle_no"
+                                             ).apply(get_corrected_per_veh)
+    print("length after cleaning", len(ev_preprocessed))
+
+    # clean up
+    ev_preprocessed = ev_preprocessed.rename(
+        columns={
+            "vehicle_no": "vehicle_no_orig"
+        }
+    ).reset_index()
+    assert all(
+        ev_preprocessed["vehicle_no"] == ev_preprocessed["vehicle_no_orig"]
+    )
+    ev_preprocessed = ev_preprocessed.drop(
+        columns=["vehicle_no_orig", "level_1"]
+    ).set_index("reservation_no")
+
+    # drop columns and duplicates
+    ev_preprocessed.drop(
         columns=[
             "prev_reservationto",
             "prev_drive_km",
@@ -103,10 +121,14 @@ def clean_reservations(ev_reservation):
         ],
         inplace=True
     )
-    wo_ff_new.drop_duplicates(
+    ev_preprocessed.drop_duplicates(
         subset=["vehicle_no", "person_no", "start_time", "end_time"],
         inplace=True
     )
-    print("length after removing duplicates", len(wo_ff_new))
-    # clean df
-    return wo_ff_new
+    print("length after removing duplicates", len(ev_preprocessed))
+    # convert start and end time into datetimes
+    ev_preprocessed["start_time"] = pd.to_datetime(
+        ev_preprocessed["start_time"]
+    )
+    ev_preprocessed["end_time"] = pd.to_datetime(ev_preprocessed["end_time"])
+    return ev_preprocessed

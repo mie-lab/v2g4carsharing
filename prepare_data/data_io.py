@@ -42,7 +42,17 @@ def load_data_postgis(path_credentials):
     #     & (services["energytypegroup"] == "Electro")]
     ev_reservation = pd.concat((ev_reservation, services))
 
-    return ev_reservation, vehicle, ev_models
+    # merge with vehicle and ev models
+    vehicle_w_model = vehicle.merge(
+        ev_models, left_on=("brand_name", "model_name"), right_index=True
+    )
+    ev_reservation = ev_reservation.merge(
+        vehicle_w_model, how="left", left_on="vehicle_no", right_index=True
+    )
+    # get vehicle to base
+    sql_v2b = "SELECT * FROM mobility.relocation"
+    relocation = pd.read_sql(sql_v2b, engine, index_col="relocation_no")
+    return ev_reservation, relocation
 
 
 def load_data_csv(path_clean_data):
@@ -53,7 +63,7 @@ def load_data_csv(path_clean_data):
     vehicle = pd.read_csv(
         os.path.join(path_clean_data, "vehicle.csv"), index_col="vehicle_no"
     )
-    ev_models = pd.read_csv(os.path.join(path_clean_data, "ev_models.csv")
+    ev_models = pd.read_csv(os.path.join("csv", "ev_models.csv")
                             ).set_index(["brand_name", "model_name"])
     # restrict to EVs for now
     ev_reservation = reservation[reservation["energytypegroup"] == "Electro"]
@@ -70,24 +80,42 @@ def load_data_csv(path_clean_data):
         & (services["energytypegroup"] == "Electro")]
     ev_reservation = pd.concat((ev_reservation, one_way_services))
 
-    return ev_reservation, vehicle, ev_models
+    # merge with vehicle and ev models
+    vehicle_w_model = vehicle.merge(
+        ev_models, left_on=("brand_name", "model_name"), right_index=True
+    )
+    ev_reservation = ev_reservation.merge(
+        vehicle_w_model, how="left", left_on="vehicle_no", right_index=True
+    )
+    # get vehicle to base
+    relocation = pd.read_csv(
+        os.path.join(path_clean_data, "relocation.csv"),
+        index_col="relocation_no"
+    )
+    return ev_reservation, relocation
 
 
 def load_ev_data(
     path_clean_data="postgis", path_credentials="../../../goeco_login.json"
 ):
     if os.path.exists(path_clean_data):
-        ev_reservation, vehicle, ev_models = load_data_csv(path_clean_data)
+        ev_reservation, relocation = load_data_csv(path_clean_data)
     else:
-        ev_reservation, vehicle, ev_models = load_data_postgis(
+        ev_reservation, relocation = load_data_postgis(
             path_credentials=path_credentials
         )
 
-    ev_reservation = ev_reservation.merge(
-        vehicle, how="left", left_on="vehicle_no", right_index=True
-    )
+    # preprocess bookings
     ev_reservation = clean_reservations(ev_reservation)
-    return ev_reservation, ev_models
+
+    # preprocess relocations - restrict v2b to the relevant vehicles
+    unique_veh_ids = ev_reservation["vehicle_no"].unique()
+    relocation = relocation[relocation["vehicle_no"].isin(unique_veh_ids)]
+    print("number of relocations", len(relocation))
+    # append to reservations
+    ev_reservation = pd.concat((ev_reservation, relocation))
+
+    return ev_reservation
 
 
 def save_matrix(

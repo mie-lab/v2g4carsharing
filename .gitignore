@@ -1,4 +1,7 @@
 # Project specific
+data/
+outputs/
+figures/
 
 # Mac
 .DS_Store

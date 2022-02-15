@@ -102,7 +102,7 @@ def get_matrices_per_vehicle(
             )
 
     # fill the station assignment until the first booking
-    station_matrix[:next_booking_index] = next_station
+    station_matrix[:start_booking_index] = next_station
     return station_matrix, reservation_matrix, required_soc
 
 

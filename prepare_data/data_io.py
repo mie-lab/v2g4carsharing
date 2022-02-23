@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from preprocessing import clean_reservations
 
 
-def load_data_postgis(path_credentials):
+def load_data_postgis(path_credentials, filter_ev=False):
     with open(path_credentials, "r") as infile:
         db_credentials = json.load(infile)
 
@@ -16,94 +16,128 @@ def load_data_postgis(path_credentials):
         return psycopg2.connect(**db_credentials)
 
     engine = create_engine('postgresql+psycopg2://', creator=get_con)
-    vehicle = pd.read_sql(
-        "SELECT * FROM mobility.vehicle", engine, index_col="vehicle_no"
-    )
-    # EV models
-    ev_models = pd.read_sql("SELECT * FROM mobility.ev_models",
-                            engine).set_index(["brand_name", "model_name"])
 
     # Service reservations
-    # Note: empty atm! no EV one-way service reservations exist!
-    sql_ev = (
-        "SELECT * FROM mobility.service_reservation WHERE energytypegroup\
-     = 'Electro' AND canceldate is null AND start_station_no != end_station_no"
+    sql_service = (
+        "SELECT * FROM mobility.service_reservation WHERE canceldate is\
+             null AND start_station_no != end_station_no"
     )
-    services = pd.read_sql(sql_ev, engine, index_col="reservation_no")
+    if filter_ev:
+        sql_service += " AND energytypegroup = 'Electro'"
+    services = pd.read_sql(sql_service, engine, index_col="reservation_no")
+
     # Reservations
-    sql_ev = (
-        "SELECT * FROM mobility.reservations WHERE energytypegroup = 'Electro'"
-    )
-    ev_reservation = pd.read_sql(sql_ev, engine, index_col="reservation_no")
+    sql_ev = ("SELECT * FROM mobility.reservations")
+    if filter_ev:
+        sql_ev += " WHERE energytypegroup = 'Electro'"
+    reservation = pd.read_sql(sql_ev, engine, index_col="reservation_no")
 
-    # one_way_services = services[
-    #     pd.isna(services["canceldate"])
-    #     & (services["start_station_no"] != services["end_station_no"])
-    #     & (services["energytypegroup"] == "Electro")]
-    ev_reservation = pd.concat((ev_reservation, services))
+    reservation = pd.concat((reservation, services))
 
-    # merge with vehicle and ev models
-    vehicle_w_model = vehicle.merge(
-        ev_models, left_on=("brand_name", "model_name"), right_index=True
-    )
-    ev_reservation = ev_reservation.merge(
-        vehicle_w_model, how="left", left_on="vehicle_no", right_index=True
-    )
     # get vehicle to base
     sql_v2b = "SELECT * FROM mobility.relocation"
     relocation = pd.read_sql(sql_v2b, engine, index_col="relocation_no")
-    return ev_reservation, relocation
+    return reservation, relocation
 
 
-def load_data_csv(path_clean_data):
+def load_data_csv(path_clean_data, filter_ev=False):
     reservation = pd.read_csv(
         os.path.join(path_clean_data, "reservation.csv"),
         index_col="reservation_no"
     )
-    vehicle = pd.read_csv(
-        os.path.join(path_clean_data, "vehicle.csv"), index_col="vehicle_no"
-    )
-    ev_models = pd.read_csv(os.path.join("csv", "ev_models.csv")
-                            ).set_index(["brand_name", "model_name"])
-    # restrict to EVs for now
-    ev_reservation = reservation[reservation["energytypegroup"] == "Electro"]
 
     # add Service reservations
     services = pd.read_csv(
         os.path.join(path_clean_data, "service_reservation.csv"),
         index_col="reservation_no"
     )
-    # Note: empty atm! no EV one-way service reservations exist!
+    # get the service reservations that are relocations
     one_way_services = services[
         pd.isna(services["canceldate"])
-        & (services["start_station_no"] != services["end_station_no"])
-        & (services["energytypegroup"] == "Electro")]
-    ev_reservation = pd.concat((ev_reservation, one_way_services))
+        & (services["start_station_no"] != services["end_station_no"])]
+    # combine reservations and services
+    reservation = pd.concat((reservation, one_way_services))
 
-    # merge with vehicle and ev models
-    vehicle_w_model = vehicle.merge(
-        ev_models, left_on=("brand_name", "model_name"), right_index=True
-    )
-    ev_reservation = ev_reservation.merge(
-        vehicle_w_model, how="left", left_on="vehicle_no", right_index=True
-    )
+    # restrict to EVs for now
+    if filter_ev:
+        reservation = reservation[reservation["energytypegroup"] == "Electro"]
+
     # get vehicle to base
     relocation = pd.read_csv(
         os.path.join(path_clean_data, "relocation.csv"),
         index_col="relocation_no"
     )
-    return ev_reservation, relocation
+    return reservation, relocation
+
+
+def simulate_filter_evs(reservation, filter_ev=False):
+    ev_models = pd.read_csv(os.path.join("csv", "ev_models.csv")
+                            ).set_index(["brand_name", "model_name"])
+    if filter_ev:
+        return reservation.merge(
+            ev_models, left_on=("brand_name", "model_name"), right_index=True
+        )
+    # first: get brand and model for all EVs
+    evs_in_fleet = reservation[reservation["energytypegroup"] == "Electro"
+                               ].groupby("vehicle_no").agg(
+                                   {
+                                       "brand_name": "first",
+                                       "model_name": "first"
+                                   }
+                               )
+    # get number of occurences for each EV
+    ev_model_occurence = evs_in_fleet.groupby(
+        ["brand_name", "model_name"]
+    ).agg({
+        "model_name": "count"
+    }).rename(columns={"model_name": "occurence"})
+    ev_model_occurence["occurence"] = ev_model_occurence[
+        "occurence"] / ev_model_occurence["occurence"].sum()
+    ev_model_occurence.reset_index(inplace=True)
+    # get IDs of ICE vehicles
+    non_ev_vehicles = (
+        reservation[reservation["energytypegroup"] != "Electro"]
+    )["vehicle_no"].unique()
+    # select random EV model for each ICE vehicle
+    range_index = np.arange(len(ev_model_occurence))
+    rand_models = np.random.choice(
+        range_index,
+        size=len(non_ev_vehicles),
+        p=ev_model_occurence["occurence"]
+    )
+    df_new = pd.DataFrame()
+    df_new["brand_name"] = ev_model_occurence.loc[rand_models]["brand_name"]
+    df_new["model_name"] = ev_model_occurence.loc[rand_models]["model_name"]
+    df_new["vehicle_no"] = non_ev_vehicles
+    df_new.set_index("vehicle_no", inplace=True)
+
+    # merge real evs with fake evs
+    all_models = pd.concat((df_new, evs_in_fleet))
+
+    reservation = reservation.drop(
+        columns=["brand_name", "model_name"]
+    ).merge(all_models, left_on="vehicle_no", right_index=True)
+    reservation = reservation.merge(
+        ev_models, left_on=("brand_name", "model_name"), right_index=True
+    )
+    return reservation
 
 
 def load_ev_data(
-    path_clean_data="postgis", path_credentials="../../../goeco_login.json"
+    path_clean_data="postgis",
+    filter_ev=False,
+    path_credentials="../../../goeco_login.json"
 ):
     if os.path.exists(path_clean_data):
-        ev_reservation, relocation = load_data_csv(path_clean_data)
-    else:
-        ev_reservation, relocation = load_data_postgis(
-            path_credentials=path_credentials
+        reservation, relocation = load_data_csv(
+            path_clean_data, filter_ev=filter_ev
         )
+    else:
+        reservation, relocation = load_data_postgis(
+            path_credentials=path_credentials, filter_ev=filter_ev
+        )
+    # load, merge and filter data
+    ev_reservation = simulate_filter_evs(reservation, filter_ev=filter_ev)
 
     # preprocess bookings
     ev_reservation = clean_reservations(ev_reservation)

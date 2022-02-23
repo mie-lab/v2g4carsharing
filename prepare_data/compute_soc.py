@@ -77,9 +77,10 @@ def get_matrices_per_vehicle(
             )
 
         # assert next station is equal to station at end of current trip
-        assert (
-            end_station == next_station or next_station == -1
-        ), f"Station mismatch for res no {res_no}"
+        if end_station != next_station and next_station != -1:
+            print(
+                f"Station mismatch for res no {res_no}, veh {row['vehicle_no']}"
+            )
 
         # assert that end is not greater than next booking start
         if end_booking_index > next_booking_index:
@@ -107,6 +108,7 @@ def get_matrices_per_vehicle(
 
 
 def get_matrices(ev_reservation, columns, overall_slots, time_granularity):
+    # ev_reservation.to_csv("test.csv", index=True) # testing
     output_matrices = ev_reservation.groupby("vehicle_no").apply(
         lambda x: get_matrices_per_vehicle(x, overall_slots, time_granularity)
     )
@@ -132,8 +134,9 @@ def get_matrices(ev_reservation, columns, overall_slots, time_granularity):
 if __name__ == "__main__":
     # specify in and out paths here
     inp_path = os.path.join("data")
-    out_path = os.path.join("outputs", "input_matrices_v4")
+    out_path = os.path.join("outputs", "input_matrices_v5")
     time_granularity = 0.25  # in reference to one hour, e.g. 0.5 = half an h
+    use_only_ev = True
 
     overall_slots = ts_to_index(
         FINAL_DATE, time_granularity=time_granularity
@@ -141,7 +144,7 @@ if __name__ == "__main__":
     os.makedirs(out_path, exist_ok=True)
 
     # Load data
-    ev_reservation = load_ev_data(inp_path)
+    ev_reservation = load_ev_data(inp_path, filter_ev=use_only_ev)
 
     # columns of resulting csv files
     columns = [
@@ -161,3 +164,16 @@ if __name__ == "__main__":
         ["station_matrix", "soc_matrix", "reservation_matrix"]
     ):
         matrix.to_csv(os.path.join(out_path, f"{name}.csv"))
+    # save ev specifications (models also for simulated EVs)
+    ev_specs = ev_reservation.groupby("vehicle_no").agg(
+        {
+            key: "first"
+            for key in [
+                "model_name", "brand_name", 'charge_power', 'battery_capacity',
+                'range'
+            ]
+        }
+    )
+    ev_specs.to_csv(
+        os.path.join(out_path, "ev_specifications.csv"), index=True
+    )

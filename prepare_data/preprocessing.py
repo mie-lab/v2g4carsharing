@@ -12,18 +12,10 @@ def get_corrected_end(row):
     if pd.isna(row["next_reservationfrom"]):
         return row["reservationto"]
     # check if overlapping at all and if the next drive was even a drive
-    if (
-        row["reservationto"] > row["next_reservationfrom"]
-        and row["next_drive_km"] > 0
-    ):
+    if (row["reservationto"] > row["next_reservationfrom"]
+        ) or (row["reservationto"] > row["next_drive_firststart"]):
         return row["next_drive_firststart"]
-    elif (
-        row["reservationto"] > row["next_reservationfrom"]
-        and row["next_drive_km"] == 0
-    ):
-        return row["drive_lastend"]
-    else:
-        return row["reservationto"]
+    return row["reservationto"]
 
 
 def get_corrected_start(row):
@@ -32,43 +24,28 @@ def get_corrected_start(row):
     if not pd.isna(row["prev_end_time"]
                    ) and row["prev_end_time"] != row["prev_reservationto"]:
         return row["prev_end_time"]
-    elif (
-        not pd.isna(row["prev_reservationto"])
-        and row["reservationfrom"] < row["prev_reservationto"]
-        and row["drive_km"] == 0
-    ):
-        return row["prev_reservationto"]
-
+    # here we could check if drive_firststart is before reservationfrom, but
+    # then station mismatch because of 0-minute-relocations
     return row["reservationfrom"]
 
 
 def get_corrected_per_veh(df):
     # sort by time
-    df.sort_values("reservationfrom", inplace=True)
+    df.sort_values("drive_firststart", inplace=True)
     # Add prev and next booking
     df["next_reservation_no"] = df["reservation_no"].shift(-1)
     df["next_reservationfrom"] = df["reservationfrom"].shift(-1)
-    df["next_drive_km"] = df["drive_km"].shift(-1)
     df["next_drive_firststart"] = df["drive_firststart"].shift(-1)
     # get previous reservation
     df["prev_reservation_no"] = df["reservation_no"].shift(1)
     df["prev_reservationto"] = df["reservationto"].shift(1)
-    df["prev_drive_km"] = df["drive_km"].shift(1)
-    df["prev_drive_lastend"] = df["drive_lastend"].shift(1)
 
     # first change the end time
     df["end_time"] = df.apply(get_corrected_end, axis=1)
     # then, we have to change the start time according to the end time before!
     df["prev_end_time"] = df["end_time"].shift(1)
+    # compute start time
     df["start_time"] = df.apply(get_corrected_start, axis=1)
-
-    # last preprocessing step: sort again and remove the 0km ones that cause
-    # trouble
-    df.sort_values("start_time", inplace=True)
-    df["next_start_time"] = df["start_time"].shift(-1)
-    df["prev_end_time"] = df["end_time"].shift(1)
-    df = df[(df["next_start_time"] >= df["end_time"]) | (df["drive_km"] > 0)]
-    df = df[(df["prev_end_time"] <= df["start_time"]) | (df["drive_km"] > 0)]
 
     return df
 
@@ -96,6 +73,14 @@ def clean_reservations(ev_reservation):
                                              ).apply(get_corrected_per_veh)
     print("length after cleaning", len(ev_preprocessed))
 
+    # remove the ones that are wrong after cleaning
+    ev_preprocessed = ev_preprocessed[
+        ~(ev_preprocessed["start_time"] > ev_preprocessed["end_time"])]
+    print("length after removal of start > end", len(ev_preprocessed))
+    ev_preprocessed = ev_preprocessed[
+        ~(ev_preprocessed["start_time"] < ev_preprocessed["prev_end_time"])]
+    print("length after removal of start < prev end", len(ev_preprocessed))
+
     # clean up
     ev_preprocessed = ev_preprocessed.rename(
         columns={
@@ -113,10 +98,7 @@ def clean_reservations(ev_reservation):
     ev_preprocessed.drop(
         columns=[
             "prev_reservationto",
-            "prev_drive_km",
-            "prev_drive_lastend",
             "next_drive_firststart",
-            "next_drive_km",
             "next_reservationfrom",
         ],
         inplace=True

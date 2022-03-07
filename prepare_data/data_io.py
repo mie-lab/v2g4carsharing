@@ -70,64 +70,108 @@ def load_data_csv(path_clean_data, filter_ev=False):
     return reservation, relocation
 
 
-def simulate_filter_evs(reservation, filter_ev=False):
+def simulate_filter_evs(reservation, sim_ev_mode="sample_current"):
+    """
+    Simulate EV models for non-ev vehicles or filter out
+
+    Args:
+        reservation (pd.DataFrame): loaded reservations
+        sim_ev_mode (str, optional): Mode what to do with non-electric vehices.
+            Possible modes:
+                `filter`: Filter out all non-electric vehicles
+                `sample_current` (default): Sample random models according to
+                    current distribution of models
+                `scenario_1`: Loads scenario from csv with models by vehice cat
+
+    Returns:
+        reservation (pd.DataFrame): reservations together with EV specs
+    """
+
+    def get_ev_models(reservation):
+        evs_in_fleet = reservation[reservation["energytypegroup"] == "Electro"
+                                   ].groupby("vehicle_no").agg(
+                                       {
+                                           "brand_name": "first",
+                                           "model_name": "first"
+                                       }
+                                   )
+        return evs_in_fleet
+
     ev_models = pd.read_csv(os.path.join("csv", "ev_models.csv")
                             ).set_index(["brand_name", "model_name"])
-    if filter_ev:
+    if sim_ev_mode == "filter":
         return reservation.merge(
             ev_models, left_on=("brand_name", "model_name"), right_index=True
         )
-    # first: get brand and model for all EVs
-    evs_in_fleet = reservation[reservation["energytypegroup"] == "Electro"
-                               ].groupby("vehicle_no").agg(
-                                   {
-                                       "brand_name": "first",
-                                       "model_name": "first"
-                                   }
-                               )
-    # get number of occurences for each EV
-    ev_model_occurence = evs_in_fleet.groupby(
-        ["brand_name", "model_name"]
-    ).agg({
-        "model_name": "count"
-    }).rename(columns={"model_name": "occurence"})
-    ev_model_occurence["occurence"] = ev_model_occurence[
-        "occurence"] / ev_model_occurence["occurence"].sum()
-    ev_model_occurence.reset_index(inplace=True)
-    # get IDs of ICE vehicles
-    non_ev_vehicles = (
-        reservation[reservation["energytypegroup"] != "Electro"]
-    )["vehicle_no"].unique()
-    # select random EV model for each ICE vehicle
-    range_index = np.arange(len(ev_model_occurence))
-    rand_models = np.random.choice(
-        range_index,
-        size=len(non_ev_vehicles),
-        p=ev_model_occurence["occurence"]
-    )
-    df_new = pd.DataFrame()
-    df_new["brand_name"] = ev_model_occurence.loc[rand_models]["brand_name"]
-    df_new["model_name"] = ev_model_occurence.loc[rand_models]["model_name"]
-    df_new["vehicle_no"] = non_ev_vehicles
-    df_new.set_index("vehicle_no", inplace=True)
+    elif sim_ev_mode == "sample_current":
+        # first: get brand and model for all EVs
+        evs_in_fleet = get_ev_models(reservation)
+        # get number of occurences for each EV
+        ev_model_occurence = evs_in_fleet.groupby(
+            ["brand_name", "model_name"]
+        ).agg({
+            "model_name": "count"
+        }).rename(columns={"model_name": "occurence"})
+        ev_model_occurence["occurence"] = ev_model_occurence[
+            "occurence"] / ev_model_occurence["occurence"].sum()
+        ev_model_occurence.reset_index(inplace=True)
+        # get IDs of ICE vehicles
+        non_ev_vehicles = (
+            reservation[reservation["energytypegroup"] != "Electro"]
+        )["vehicle_no"].unique()
+        # select random EV model for each ICE vehicle
+        range_index = np.arange(len(ev_model_occurence))
+        rand_models = np.random.choice(
+            range_index,
+            size=len(non_ev_vehicles),
+            p=ev_model_occurence["occurence"]
+        )
+        df_new = pd.DataFrame()
+        df_new["brand_name"] = ev_model_occurence.loc[rand_models]["brand_name"
+                                                                   ]
+        df_new["model_name"] = ev_model_occurence.loc[rand_models]["model_name"
+                                                                   ]
+        df_new["vehicle_no"] = non_ev_vehicles
+        df_new.set_index("vehicle_no", inplace=True)
 
-    # merge real evs with fake evs
-    all_models = pd.concat((df_new, evs_in_fleet))
+        # merge real evs with fake evs
+        all_models = pd.concat((df_new, evs_in_fleet))
 
-    reservation = reservation.drop(
-        columns=["brand_name", "model_name"]
-    ).merge(all_models, left_on="vehicle_no", right_index=True)
-    reservation = reservation.merge(
-        ev_models, left_on=("brand_name", "model_name"), right_index=True
-    )
-    return reservation
+        reservation = reservation.drop(
+            columns=["brand_name", "model_name"]
+        ).merge(all_models, left_on="vehicle_no", right_index=True)
+        reservation = reservation.merge(
+            ev_models, left_on=("brand_name", "model_name"), right_index=True
+        )
+        return reservation
+    elif sim_ev_mode == "scenario_1":
+        # load brand and model for all non-EVs in this scenario
+        scenario = pd.read_csv(os.path.join("csv", "scenario_1.csv")
+                               ).set_index("vehicle_no")
+        # second: get brand and model for all EVs
+        evs_in_fleet = get_ev_models(reservation)
+        # merge
+        all_models = pd.concat((scenario, evs_in_fleet))
+        # replace real models with the simulated ones
+        reservation = reservation.drop(
+            columns=["brand_name", "model_name"]
+        ).merge(all_models, left_on="vehicle_no", right_index=True)
+        # merge with EV specs
+        return reservation.merge(
+            ev_models, left_on=("brand_name", "model_name"), right_index=True
+        )
+    else:
+        raise NotImplementedError(
+            "mode must be one of filter, sample_current or scenario_1"
+        )
 
 
 def load_ev_data(
     path_clean_data="postgis",
-    filter_ev=False,
+    sim_ev_mode="sample_current",
     path_credentials="../../../goeco_login.json"
 ):
+    filter_ev = sim_ev_mode == "filter"  # filter out or simulate non-ev cars?
     if os.path.exists(path_clean_data):
         reservation, relocation = load_data_csv(
             path_clean_data, filter_ev=filter_ev
@@ -137,7 +181,7 @@ def load_ev_data(
             path_credentials=path_credentials, filter_ev=filter_ev
         )
     # load, merge and filter data
-    ev_reservation = simulate_filter_evs(reservation, filter_ev=filter_ev)
+    ev_reservation = simulate_filter_evs(reservation, sim_ev_mode=sim_ev_mode)
 
     # preprocess bookings
     ev_reservation = clean_reservations(ev_reservation)

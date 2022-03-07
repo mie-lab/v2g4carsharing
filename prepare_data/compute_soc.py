@@ -137,7 +137,7 @@ if __name__ == "__main__":
     inp_path = os.path.join("data")
     out_path = os.path.join("outputs", "input_matrices")
     time_granularity = 0.25  # in reference to one hour, e.g. 0.5 = half an h
-    use_only_ev = False
+    sim_ev_mode = "scenario_1"
 
     overall_slots = ts_to_index(
         FINAL_DATE, time_granularity=time_granularity
@@ -145,7 +145,7 @@ if __name__ == "__main__":
     os.makedirs(out_path, exist_ok=True)
 
     # Load data
-    ev_reservation = load_ev_data(inp_path, filter_ev=use_only_ev)
+    ev_reservation = load_ev_data(inp_path, sim_ev_mode=sim_ev_mode)
 
     # columns of resulting csv files
     columns = [

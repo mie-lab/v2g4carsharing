@@ -32,7 +32,7 @@ def compute_avail_use_vehicle(
 ):
     """
     Compute availability or usage for one vehicle
-    Creating a matrix of discrete time steps with granularity 'time_granularity'
+    Creating a matrix of discrete timesteps with granularity 'time_granularity'
     and therefore 'overall_slots' columns
     """
     veh_total_available_hours = np.zeros(overall_slots + 1)
@@ -124,3 +124,34 @@ def compute_usage(data_path, time_granularity=24):
             total_used_hours_ice += total_used_hours
     print("Done usage")
     return (total_used_hours_ice, total_used_hours_ev)
+
+
+def prepare_scenario_1(base_path="."):
+    # Load basics
+    reservation = pd.read_csv(
+        os.path.join(base_path, "data", "reservation.csv")
+    )
+    vehicle = pd.read_csv(os.path.join(base_path, "data", "vehicle.csv"))
+    # Load scenario
+    scenario = pd.read_csv(
+        os.path.join(base_path, "csv", "scenario_1_models.csv")
+    )
+    # merge vehicle information
+    res_veh = reservation.merge(
+        vehicle, how="left", left_on="vehicle_no", right_on="vehicle_no"
+    )
+    veh_cat = res_veh.groupby("vehicle_no").agg(
+        {
+            "vehicle_category": "first",
+            "energytypegroup_x": "first"
+        }
+    )
+    # filter for non EVs
+    veh_cat_ev = veh_cat[veh_cat["energytypegroup_x"] != "Electro"]
+    # merge with scneario
+    new_model_by_veh = veh_cat_ev.reset_index().merge(
+        scenario, left_on="vehicle_category", right_on="vehicle_category"
+    )
+    new_model_by_veh.set_index("vehicle_no").drop(
+        "vehicle_category", axis=1
+    ).to_csv(os.path.join(base_path, "csv", "scenario_1.csv"))

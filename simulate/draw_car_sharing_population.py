@@ -2,12 +2,17 @@ import numpy as np
 import geopandas as gpd
 import os
 import pandas as pd
-from shapely import wkt
 import matplotlib.pyplot as plt
 import multiprocessing
 import scipy
+from shapely import wkt
 import geopandas as gpd
 from sklearn.neighbors import KernelDensity
+
+
+def configure(context):
+    context.config("input_downsampling")
+    context.stage("data.statpop.scaled")
 
 
 def load_and_convert_crs(file_path, index_name):

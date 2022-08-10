@@ -1,0 +1,29 @@
+# General pipeline settings
+working_directory: /Users/ninawiedemann/MIE/V2G/external_repos/ch-zh-synpop/cache
+flowchart_path: /Users/ninawiedemann/MIE/V2G/external_repos/ch-zh-synpop/flowchart.json
+dryrun: false
+
+# Requested stages
+run:
+    - synthesis.population.sampled
+    - synthesis.population.matched
+    - synthesis.population.enriched
+    - synthesis.population.trips
+    - synthesis.population.activities
+    - synthesis.population.spatial.locations
+
+# These are configuration options that we use in the pipeline
+config:
+    threads: 4
+    random_seed: 0
+    hot_deck_matching_runners: 2
+    disable_progress_bar: false
+    java_memory: 10G
+    input_downsampling: 0.01
+    enable_scaling: true
+    scaling_year: 2030
+    use_freight: false
+    hafas_date: 01.10.2018
+    data_path: /Users/ninawiedemann/MIE/V2G/data/ivt_data
+    output_path: /Users/ninawiedemann/MIE/V2G/data/out_synpop
+    output_id: 2030

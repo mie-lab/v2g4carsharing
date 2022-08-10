@@ -132,6 +132,8 @@ def compute_sample_weights(scaled_population, car_sharing_data_path, swiss_bound
     scaled_locations.crs = "EPSG:2056"
     # Compute nearest station distance for scaled population
     scaled_locations = scaled_locations.sjoin_nearest(station_df[["geom"]], distance_col="nearest_station_distance")
+    # Problem: Some stations are duplicates and therefore added multiple times. We can simply remove the duplicates
+    scaled_locations.drop_duplicates(subset=["home_x", "home_y"], inplace=True)
 
     print("Compute distance for car sharing users")
     # Compute nearest station distance for car sharing users
@@ -253,7 +255,18 @@ def execute(context):
             nr_samples, replace=False, weights=scaled_population["sample_probs"]
         )
 
+        # Clean
+        # remove the children
+        population_sample = population_sample[population_sample["age"] >= 18]
+        # Add head for each household
+        population_sample.drop("is_head", axis=1, inplace=True)
+        max_age_idx = population_sample.loc[population_sample.groupby("household_id")["age"].idxmax()].reset_index(
+            drop=True
+        )
+        population_sample["is_head"] = population_sample["person_id"].isin(max_age_idx["person_id"])
+
     return population_sample.drop("sample_probs", axis=1)
+
 
 
 if __name__ == "__main__":

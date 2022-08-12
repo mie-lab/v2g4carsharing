@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import datetime
+import geopandas as gpd
+from shapely.geometry import Point
 import seaborn as sns
 import json
 
@@ -85,7 +87,7 @@ def preprocess_reservation(source_path):
     return data_booking
 
 
-def preprocess_station(source_path):
+def preprocess_station(source_path, check_duplicates=False):
     data_station = pd.read_excel(
         os.path.join(source_path, "20220204_eth_base.xlsx")
     )
@@ -97,7 +99,35 @@ def preprocess_station(source_path):
         }, inplace=True
     )
     data_station.set_index("STATION_NO", inplace=True)
-    data_station = lon_lat_to_geom(data_station)
+    data_station = gpd.GeoDataFrame(
+        data_station, 
+        geometry=gpd.points_from_xy(data_station["LON"],
+        data_station["LAT"]), crs="EPSG:4326")
+    if check_duplicates:
+        # read reservations and get bookings per station
+        res = pd.read_csv(os.path.join(out_path, "reservation.csv"))
+        res = res.groupby("start_station_no").agg({"start_station_no": "count"})
+        res.rename(columns={"start_station_no": "nr_bookings"}, inplace=True)
+        # get distances of all stations to a fake point
+        temp = Point(6.165548, 46.29)
+        temp = gpd.GeoDataFrame([temp], columns=["geom"]).set_geometry("geom")
+        temp.crs = "EPSG:4326"
+        temp_station = data_station[["geom"]].copy()
+        temp_station = temp_station.sjoin_nearest(temp, distance_col="dist")
+        # merge with reservation
+        temp_station = temp_station.merge(
+            res, how="left", left_index=True, right_index=True
+            )
+        temp_station["nr_bookings"] = temp_station["nr_bookings"].fillna(0)
+        temp_station = temp_station.sort_values("nr_bookings", ascending=False)
+        # get duplicates by distance
+        temp_station["duplicated"] = temp_station.duplicated(subset=["dist"])
+        # merge into data station --> new column "duplicated"
+        data_station = data_station.merge(
+            temp_station[["duplicated"]], how="left",
+            left_index=True, right_index=True
+        )
+
     return data_station
 
 

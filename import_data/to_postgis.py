@@ -11,6 +11,7 @@ def write_to_postgis(local_path, path_credentials):
     # load credentials
     with open(path_credentials, "r") as infile:
         db_credentials = json.load(infile)
+    db_credentials["database"] = "v2g"
 
     def get_con():
         return psycopg2.connect(**db_credentials)
@@ -30,15 +31,17 @@ def write_to_postgis(local_path, path_credentials):
             index=True,
             index_label=index_name,
             chunksize=10000,
+            if_exists="replace",
             dtype=None
         )
+        print("Done writing to postgis", load_name, index_name)
 
     # 2) NORMAL POSTGRESQL
-    df_names = ["vehicle", "all_reservation", "vehicle_to_base", "relocation"]
-    index_names = ["vehicle_no", "reservation_no", "v2b_no", "relocation_no"]
+    df_names = ["vehicle", "all_reservation", "vehicle_to_base", "relocation", "service_reservation", "free_floating_reservation", "cancelled_reservation", "reservation"]
+    index_names = ["vehicle_no", "reservation_no", "v2b_no", "relocation_no", "reservation_no", "reservation_no", "reservation_no", "reservation_no"]
     for load_name, index_name in zip(df_names, index_names):
         df = pd.read_csv(
-            os.path.join(local_path, f"{load_name}.csv", index_col=index_name)
+            os.path.join(local_path, f"{load_name}.csv"), index_col=index_name
         )
         df.to_sql(
             load_name,
@@ -49,9 +52,10 @@ def write_to_postgis(local_path, path_credentials):
             if_exists='replace',
             chunksize=10000
         )
+        print("Done writing to postgresql", load_name, index_name)
 
 
 if __name__ == "__main__":
     path = "data"
-    db_login_path = "../../goeco_login.json"
+    db_login_path = "../../dblogin_mielab.json"
     write_to_postgis(path, db_login_path)

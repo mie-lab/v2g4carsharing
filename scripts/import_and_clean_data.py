@@ -2,8 +2,8 @@ import os
 import pandas as pd
 import argparse
 
-# from v2g4carsharing.import_data.data_cleaning import *
-# from v2g4carsharing.import_data.to_postgis import write_to_postgis
+from v2g4carsharing.import_data.data_cleaning import *
+from v2g4carsharing.import_data.to_postgis import write_to_postgis
 
 
 if __name__ == "__main__":

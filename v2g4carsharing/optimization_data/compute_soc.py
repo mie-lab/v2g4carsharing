@@ -1,18 +1,8 @@
-import os
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib
-import datetime
-import time
-import json
 
-from data_io import save_matrix, load_ev_data
-from utils import (
-    convert_to_datetime, convert_to_timestamp, diff_in_hours, ts_to_index,
-    index_to_ts, BASE_DATE, FINAL_DATE
-)
-from preprocessing import clean_reservations
+
+from utils import FINAL_DATE, ts_to_index
 
 
 def get_matrices_per_vehicle(
@@ -130,51 +120,3 @@ def get_matrices(ev_reservation, columns, overall_slots, time_granularity):
         columns=columns
     )
     return station_matrix, reservation_matrix, required_soc_matrix
-
-
-if __name__ == "__main__":
-    # specify in and out paths here
-    inp_path = os.path.join("data")
-    out_path = os.path.join("outputs", "input_matrices")
-    time_granularity = 0.25  # in reference to one hour, e.g. 0.5 = half an h
-    sim_ev_mode = "scenario_1"
-
-    overall_slots = ts_to_index(
-        FINAL_DATE, time_granularity=time_granularity
-    ) + 1
-    os.makedirs(out_path, exist_ok=True)
-
-    # Load data
-    ev_reservation = load_ev_data(inp_path, sim_ev_mode=sim_ev_mode)
-
-    # columns of resulting csv files
-    columns = [
-        index_to_ts(
-            index, time_granularity=time_granularity, base_date=BASE_DATE
-        ) for index in range(overall_slots)
-    ]
-
-    # Run
-    (station_matrix, reservation_matrix, required_soc) = get_matrices(
-        ev_reservation, columns, overall_slots, time_granularity
-    )
-
-    # Save
-    for matrix, name in zip(
-        [station_matrix, required_soc, reservation_matrix],
-        ["station_matrix", "soc_matrix", "reservation_matrix"]
-    ):
-        matrix.to_csv(os.path.join(out_path, f"{name}.csv"))
-    # save ev specifications (models also for simulated EVs)
-    ev_specs = ev_reservation.groupby("vehicle_no").agg(
-        {
-            key: "first"
-            for key in [
-                "model_name", "brand_name", 'charge_power', 'battery_capacity',
-                'range'
-            ]
-        }
-    )
-    ev_specs.to_csv(
-        os.path.join(out_path, "ev_specifications.csv"), index=True
-    )

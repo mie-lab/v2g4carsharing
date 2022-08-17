@@ -27,7 +27,21 @@ This module contains all code to transform the car sharing reservations into sui
 * Discretizing (e.g. 15 min intervals)
 * Creating matrix of arrival and departure slots
 
+Run the corresponding script:
+```
+prepare_optimization_data.py [-h] [-i IN_PATH] [-o OUT_PATH] [-s SCENARIO] [-t TIME_GRANULARITY]
 
+optional arguments:
+  -h, --help            show this help message and exit
+  -i IN_PATH, --in_path IN_PATH
+                        path to input data
+  -o OUT_PATH, --out_path OUT_PATH
+                        path to save output
+  -s SCENARIO, --scenario SCENARIO
+                        EV scenario name
+  -t TIME_GRANULARITY, --time_granularity TIME_GRANULARITY
+                        discretization in hours
+```
 
 ## Simulation
 

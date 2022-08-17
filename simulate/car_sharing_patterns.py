@@ -94,9 +94,9 @@ def derive_decision_time(acts_gdf):
         acts_gdf["start_time"] - acts_gdf["drive_time"] * 60 - 10 * 60  # in seconds, giving 10min decision time
     )
     # drop first activity
-    essential_col = acts_gdf.dropna(subset="mode_decision_time")
+    acts_gdf_mode = acts_gdf.dropna(subset="mode_decision_time")
     # reduce to required columns
-    essential_col = essential_col[
+    acts_gdf_mode = acts_gdf_mode[
         [
             "person_id",
             "activity_index",
@@ -113,33 +113,33 @@ def derive_decision_time(acts_gdf):
         ]
     ]
     # drop the rows of activities that are repeated
-    print("Number of activities", len(essential_col))
-    essential_col = essential_col[essential_col["distance_from_prev"] > 0]
-    print("Activities after dropping 0-distance ones:", len(essential_col))
+    print("Number of activities", len(acts_gdf_mode))
+    acts_gdf_mode = acts_gdf_mode[acts_gdf_mode["distance_from_prev"] > 0]
+    print("Activities after dropping 0-distance ones:", len(acts_gdf_mode))
 
     # correct wrong decision times (sometimes they are lower than the one of the previous activity,
     # due to rough approximation of vehicle speed)
     cond1, cond2 = np.array([True]), np.array([True])
     while np.sum(cond1 & cond2) > 0:
-        essential_col["prev_dec_time"] = essential_col["mode_decision_time"].shift(1)
-        essential_col["prev_person"] = essential_col["person_id"].shift(1)
-        cond1 = essential_col["prev_dec_time"] > essential_col["mode_decision_time"]
-        cond2 = essential_col["prev_person"] == essential_col["person_id"]
+        acts_gdf_mode["prev_dec_time"] = acts_gdf_mode["mode_decision_time"].shift(1)
+        acts_gdf_mode["prev_person"] = acts_gdf_mode["person_id"].shift(1)
+        cond1 = acts_gdf_mode["prev_dec_time"] > acts_gdf_mode["mode_decision_time"]
+        cond2 = acts_gdf_mode["prev_person"] == acts_gdf_mode["person_id"]
         # print(np.sum(cond1 & cond2))
         # reset decision time to after the previously chosen
-        essential_col.loc[(cond1 & cond2), "mode_decision_time"] = (
-            essential_col.loc[(cond1 & cond2), "prev_dec_time"] + 2 * 60
+        acts_gdf_mode.loc[(cond1 & cond2), "mode_decision_time"] = (
+            acts_gdf_mode.loc[(cond1 & cond2), "prev_dec_time"] + 2 * 60
         )  # add five minutes to the previous decision time
 
     # now all the decision times should be sorted
-    assert essential_col.equals(essential_col.sort_values(["person_id", "mode_decision_time"]))
+    assert acts_gdf_mode.equals(acts_gdf_mode.sort_values(["person_id", "mode_decision_time"]))
 
-    return essential_col
+    return acts_gdf_mode
 
 
-def assign_mode(essential_col, per_station_veh_avail):
+def assign_mode(acts_gdf_mode, per_station_veh_avail):
     # now sort by mode decision time, not by person
-    essential_col = essential_col.sort_values("mode_decision_time")
+    acts_gdf_mode = acts_gdf_mode.sort_values("mode_decision_time")
     # keep track for each person where their shared trips started
     shared_starting_station = {}
     # keep track of the vehicle ID of the currently borrowed car
@@ -147,7 +147,7 @@ def assign_mode(essential_col, per_station_veh_avail):
 
     tic = time.time()
     final_modes, final_veh_ids = [], []
-    for i, row in essential_col.iterrows():
+    for i, row in acts_gdf_mode.iterrows():
         # get necessary variables
         person_id = row["person_id"]
         closest_station = row["prev_closest_station"]  # closest station at previous activity for starting
@@ -191,36 +191,36 @@ def assign_mode(essential_col, per_station_veh_avail):
         if mode != "shared":
             final_veh_ids.append(-1)
     print("time for reservation generation:", time.time() - tic)
-    essential_col["mode"] = final_modes
-    essential_col["vehicle_no"] = final_veh_ids
+    acts_gdf_mode["mode"] = final_modes
+    acts_gdf_mode["vehicle_no"] = final_veh_ids
     # sort back
-    essential_col.sort_values(["person_id", "activity_index"], inplace=True)
-    return essential_col
+    acts_gdf_mode.sort_values(["person_id", "activity_index"], inplace=True)
+    return acts_gdf_mode
 
 
-def derive_reservations(shared_rides):
-    shared_rides["index_temp"] = shared_rides.index.values
-    shared_rides["next_person_id"] = shared_rides["person_id"].shift(-1).values
-    shared_rides["next_mode"] = shared_rides["mode"].shift(-1).values
+def derive_reservations(acts_gdf_mode):
+    acts_gdf_mode["index_temp"] = acts_gdf_mode.index.values
+    acts_gdf_mode["next_person_id"] = acts_gdf_mode["person_id"].shift(-1).values
+    acts_gdf_mode["next_mode"] = acts_gdf_mode["mode"].shift(-1).values
     # # relevant if including cond5 / cond6
     # shared_rides["next_activity_index"] = shared_rides["activity_index"].shift(-1).values
     # shared_rides["next_vehicle_no"] = shared_rides["vehicle_no"].shift(-1).values
 
     # merge the bookings to subsequent activities:
-    cond = pd.Series(data=False, index=shared_rides.index)
-    cond_old = pd.Series(data=True, index=shared_rides.index)
+    cond = pd.Series(data=False, index=acts_gdf_mode.index)
+    cond_old = pd.Series(data=True, index=acts_gdf_mode.index)
     cond_diff = cond != cond_old
 
     while np.sum(cond_diff) >= 1:
         # .values is important otherwise the "=" would imply a join via the new index
-        shared_rides["next_id"] = shared_rides["index_temp"].shift(-1).values
+        acts_gdf_mode["next_id"] = acts_gdf_mode["index_temp"].shift(-1).values
 
         # identify rows to merge
-        cond0 = shared_rides["next_person_id"] == shared_rides["person_id"]
-        cond1 = shared_rides["index_temp"] != shared_rides["next_id"]  # already merged
-        cond2 = shared_rides["mode"] == "shared"
-        cond3 = shared_rides["next_mode"] == "shared"
-        cond4 = ~pd.isna(shared_rides["next_id"])
+        cond0 = acts_gdf_mode["next_person_id"] == acts_gdf_mode["person_id"]
+        cond1 = acts_gdf_mode["index_temp"] != acts_gdf_mode["next_id"]  # already merged
+        cond2 = acts_gdf_mode["mode"] == "shared"
+        cond3 = acts_gdf_mode["next_mode"] == "shared"
+        cond4 = ~pd.isna(acts_gdf_mode["next_id"])
         # cond5 = shared_rides["activity_index"] == shared_rides["next_activity_index"] - 1
         # # we cannot trust activity index because the repeated locations were removed --> cond5 is unsuitable.
         # # therefore, cond 2 and 3 were included instead
@@ -232,14 +232,14 @@ def derive_reservations(shared_rides):
         cond = cond0 & cond1 & cond2 & cond3 & cond4
 
         # assign index to next row
-        shared_rides.loc[cond, "index_temp"] = shared_rides.loc[cond, "next_id"]
+        acts_gdf_mode.loc[cond, "index_temp"] = acts_gdf_mode.loc[cond, "next_id"]
 
         # check whether anything was changed
         cond_diff = cond != cond_old
         cond_old = cond.copy()
 
     # now after setting the index, reduce to shared
-    shared_rides = shared_rides[shared_rides["mode"] == "shared"]
+    shared_rides = acts_gdf_mode[acts_gdf_mode["mode"] == "shared"]
 
     # aggregate into car sharing bookings instead
     agg_dict = {
@@ -295,7 +295,7 @@ if __name__ == "__main__":
     acts_gdf_mode = assign_mode(acts_gdf, per_station_veh_avail)
 
     # get shared only and derive the reservations by merging subsequent car sharing trips
-    simulated_reservations = derive_reservations(acts_gdf_mode)
+    sim_reservations = derive_reservations(acts_gdf_mode)
 
-    simulated_reservations.to_csv(os.path.join("outputs", "simulated_car_sharing", save_name + ".csv"))
+    sim_reservations.to_csv(os.path.join("outputs", "simulated_car_sharing", save_name + ".csv"))
 

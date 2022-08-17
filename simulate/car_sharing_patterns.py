@@ -8,7 +8,6 @@ import pandas as pd
 from shapely import wkt
 import matplotlib.pyplot as plt
 import scipy
-import seaborn
 
 from import_data.import_utils import to_datetime_bizend
 from mode_choice_model.simple_choice_models import *
@@ -50,13 +49,13 @@ def load_activities(cache_path="../external_repos/ch-zh-synpop/cache_2022/"):
     with open(
         os.path.join(cache_path, "synthesis.population.spatial.locations__4a0fb9027293545c4692f3be972f79b8.p",), "rb",
     ) as infile:
-        geoms = pickle.load(infile).set_index(["person_id", "activity_index"], inplace=True)
+        geoms = pickle.load(infile).set_index(["person_id", "activity_index"])
 
     # load activity data
     with open(
         os.path.join(cache_path, "synthesis.population.activities__4a0fb9027293545c4692f3be972f79b8.p",), "rb",
     ) as infile:
-        activities = pickle.load(infile).set_index(["person_id", "activity_index"], inplace=True)
+        activities = pickle.load(infile).set_index(["person_id", "activity_index"])
 
     acts = activities.merge(geoms, how="left", left_index=True, right_index=True)
     print(
@@ -67,8 +66,8 @@ def load_activities(cache_path="../external_repos/ch-zh-synpop/cache_2022/"):
     # sort by person and activity_index
     acts = acts.reset_index().sort_values(["person_id", "activity_index"])
     # assign new IDs for activity identification
-    acts_gdf["id"] = np.arange(len(acts_gdf))
-    acts_gdf.set_index("id", inplace=True)
+    acts["id"] = np.arange(len(acts))
+    acts.set_index("id", inplace=True)
 
     # get the previous geometry of each row
     acts["prev_geometry"] = acts["geometry"].shift(1)
@@ -80,7 +79,7 @@ def load_activities(cache_path="../external_repos/ch-zh-synpop/cache_2022/"):
 
 def derive_decision_time(acts_gdf):
     avg_drive_speed = 50  # kmh
-    print("max distance between activities", acts_gdf["distance_to_next"].max())
+    print("max distance between activities", round(acts_gdf["distance_from_prev"].max()))
     # get appriximate travel time in minutes
     acts_gdf["drive_time"] = 60 * acts_gdf["distance_from_prev"] / (1000 * avg_drive_speed)
     # compute time for decision making
@@ -119,7 +118,7 @@ def derive_decision_time(acts_gdf):
         essential_col["prev_person"] = essential_col["person_id"].shift(1)
         cond1 = essential_col["prev_dec_time"] > essential_col["mode_decision_time"]
         cond2 = essential_col["prev_person"] == essential_col["person_id"]
-        print(np.sum(cond1 & cond2))
+        # print(np.sum(cond1 & cond2))
         # reset decision time to after the previously chosen
         essential_col.loc[(cond1 & cond2), "mode_decision_time"] = (
             essential_col.loc[(cond1 & cond2), "prev_dec_time"] + 2 * 60
@@ -163,8 +162,8 @@ def assign_mode(essential_col):
         if nr_avail < 1:
             mode = "car"
         else:
-            mode = distance_dependent_mode_choice(distance, row["prev_distance_to_station"])
-            # mode = simple_mode_choice(distance)
+            # mode = distance_dependent_mode_choice(distance, row["prev_distance_to_station"])
+            mode = simple_mode_choice(distance)
 
         # if shared, set vehicle as borrowed and remember the pick up station (for return)
         if mode == "shared":
@@ -175,7 +174,7 @@ def assign_mode(essential_col):
         assert per_station_veh_avail[closest_station] >= 0
 
         final_modes.append(mode)
-    print(time.time() - tic)
+    print("time for reservation generation:", time.time() - tic)
     essential_col["mode"] = final_modes
     # sort back
     essential_col.sort_values(["person_id", "activity_index"], inplace=True)
@@ -211,7 +210,6 @@ def derive_reservations(shared_rides):
 
         # check whether anything was changed
         cond_diff = cond != cond_old
-        print("cond diff", np.sum(cond_diff))
         cond_old = cond.copy()
 
     # aggregate into car sharing bookings instead
@@ -234,10 +232,18 @@ def derive_reservations(shared_rides):
             "closest_station": "start_station_no",
         }
     )
+    sim_reservations.index.name = "reservation_no"
+
+    # amend with some more information
+    sim_reservations["drive_km"] = sim_reservations["distance_from_prev"] / 1000
+    sim_reservations["duration"] = (sim_reservations["reservationto"] - sim_reservations["reservationfrom"]) / 60 / 60
+
     return sim_reservations
 
 
 if __name__ == "__main__":
+    save_name = "simple"
+
     # load activities and shared-cars availability
     acts_gdf = load_activities()
     station_count = carsharing_availability_one_day()
@@ -245,14 +251,19 @@ if __name__ == "__main__":
     # merge both
     acts_gdf = acts_gdf.sjoin_nearest(station_count, distance_col="distance_to_station")
     acts_gdf.rename(columns={"index_right": "closest_station"}, inplace=True)
+    acts_gdf.sort_values(["person_id", "activity_index"], inplace=True)
     acts_gdf["prev_closest_station"] = acts_gdf["closest_station"].shift(1)
+    acts_gdf["prev_distance_to_station"] = acts_gdf["distance_to_station"].shift(1)
 
     # get time when decision is made
-    essential_col = derive_decision_time(acts_gdf)
+    acts_gdf = derive_decision_time(acts_gdf)
 
     # Run: iteratively assign modes
-    essential_col = assign_mode(essential_col)
+    acts_gdf_mode = assign_mode(acts_gdf)
 
     # get shared only and derive the reservations by merging subsequent car sharing trips
-    shared_rides = essential_col[essential_col["mode"] == "shared"]
+    shared_rides = acts_gdf_mode[acts_gdf_mode["mode"] == "shared"]
     simulated_reservations = derive_reservations(shared_rides)
+
+    simulated_reservations.to_csv(os.path.join("outputs", "simulated_car_sharing", save_name + ".csv"))
+

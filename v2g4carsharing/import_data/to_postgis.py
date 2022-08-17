@@ -53,9 +53,3 @@ def write_to_postgis(local_path, path_credentials):
             chunksize=10000
         )
         print("Done writing to postgresql", load_name, index_name)
-
-
-if __name__ == "__main__":
-    path = "data"
-    db_login_path = "../../dblogin_mielab.json"
-    write_to_postgis(path, db_login_path)

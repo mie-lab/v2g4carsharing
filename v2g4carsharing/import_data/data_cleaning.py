@@ -87,7 +87,7 @@ def preprocess_reservation(source_path):
     return data_booking
 
 
-def preprocess_station(source_path, check_duplicates=False):
+def preprocess_station(source_path, check_duplicates=False, path_for_duplicates=None):
     data_station = pd.read_excel(
         os.path.join(source_path, "20220204_eth_base.xlsx")
     )
@@ -105,7 +105,7 @@ def preprocess_station(source_path, check_duplicates=False):
         data_station["LAT"]), crs="EPSG:4326")
     if check_duplicates:
         # read reservations and get bookings per station
-        res = pd.read_csv(os.path.join(out_path, "reservation.csv"))
+        res = pd.read_csv(os.path.join(path_for_duplicates, "reservation.csv"))
         res = res.groupby("start_station_no").agg({"start_station_no": "count"})
         res.rename(columns={"start_station_no": "nr_bookings"}, inplace=True)
         # get distances of all stations to a fake point
@@ -205,62 +205,4 @@ def split_reservation(out_path):
     # 5) save the leftover part
     data_booking.to_csv(
         os.path.join(out_path, "reservation.csv"), index="reservation_no"
-    )
-
-
-if __name__ == "__main__":
-    # folder
-    source_path = "../data/V2G4Carsharing"
-    out_path = "data"
-    os.makedirs(out_path)
-
-    # load and preprocess all
-    data_user = preprocess_user(source_path)
-    data_vehicle = preprocess_vehicle(source_path)
-    data_station = preprocess_station(source_path)
-    data_reservation = preprocess_reservation(source_path)
-    data_v2b = preprocess_v2b(source_path)
-
-    data = [data_user, data_vehicle, data_station, data_reservation, data_v2b]
-    save_name = [
-        "user", "vehicle", "station", "all_reservation", "vehicle_to_base"
-    ]
-
-    # Rename columns to lower case and save
-    for df, df_name in zip(data, save_name):
-        index_name = df.index.name
-        print(df_name, index_name, type(df))
-
-        # modify columns
-        new_names = {name: name.lower() for name in df.reset_index().columns}
-        if df_name == "all_reservation":
-            new_names["BASESTART_NO"] = "start_station_no"
-            new_names["BASEEND_NO"] = "end_station_no"
-        if df_name == "vehicle_to_base":
-            new_names["BASE_NO"] = "station_no"
-
-        df = df.reset_index().rename(columns=new_names
-                                     ).set_index(index_name.lower())
-
-        # write
-        if df_name in ["user", "station"]:
-            write_geodataframe(df, os.path.join(out_path, f"{df_name}.csv"))
-        else:
-            df.to_csv(
-                os.path.join(out_path, f"{df_name}.csv"),
-                index=index_name.lower()
-            )
-        print("Written file")
-
-    # split whole table of reservations into service reservation, cancelled etc
-    split_reservation(out_path)
-
-    # convert v2b into relocations
-    data_v2b = pd.read_csv(
-        os.path.join(out_path, "vehicle_to_base.csv"), index_col="v2b_no"
-    )
-    relocations = v2b_to_relocations(data_v2b)
-    relocations.index.name = "relocation_no"
-    relocations.to_csv(
-        os.path.join(out_path, "relocation.csv"), index="relocation_no"
     )

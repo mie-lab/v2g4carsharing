@@ -11,8 +11,17 @@ import seaborn as sns
 
 
 def compare_user_dist(res_real, res_sim):
-    print("real", len(res_real["person_no"].unique()) / len(res_real))
-    print("sim", len(res_sim["person_no"].unique()) / len(res_sim))
+    # same for user distribution
+    uni_person_per_day = (
+        res_real.reset_index().groupby("start_date").agg({"reservation_no": "count", "person_no": "nunique"})
+    )
+    uni_person_per_day["ratio_unique"] = uni_person_per_day["person_no"] / uni_person_per_day["reservation_no"]
+    mean, std = uni_person_per_day["ratio_unique"].mean(), uni_person_per_day["ratio_unique"].std()
+    print(f"real mean: {round(mean, 2)}, std: {round(std, 2)}")
+    # print("real", len(res_real["person_no"].unique()) / len(res_real))
+    sim_uni_user_ratio = len(res_sim["person_no"].unique()) / len(res_sim)
+    print("sim", sim_uni_user_ratio)
+    print("z value for user dist", (sim_uni_user_ratio - mean) / std)
 
 
 def compare_hist_dist(res_real, res_sim, col_name, out_path=None):

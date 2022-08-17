@@ -45,4 +45,19 @@ optional arguments:
 
 ## Simulation
 
+### Training a mode choice model
+
+For simulating car sharing patterns, we train a mode choice model. For each trip, dependent on geographic features, time and activity purpose and distance, we predict the used mode. 
+Different models are implemented. 
+
+1) Simple MLP:
+
+```
+python scripts/train_mode_choice_mlp.py
+```
+
+2) Naive models:
+
+See [simple_choice_models](v2g4carsharing/mode_choice_model/simple_choice_models.py)
+
 ### Generating a synthetic population

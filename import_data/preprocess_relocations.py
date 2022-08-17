@@ -1,4 +1,5 @@
 import pandas as pd
+from import_utils import to_datetime_bizend
 
 BASE_DATE = pd.to_datetime('2019-01-01 00:00:00.000')
 FINAL_DATE = pd.to_datetime("2020-07-31 23:59:59.999")
@@ -11,12 +12,6 @@ def prepare_v2b(v2b):
     """
     v2b_reset = v2b.reset_index().drop("v2b_no", axis=1)
     v2b_reset["bizbeg"] = pd.to_datetime(v2b_reset["bizbeg"])
-
-    def to_datetime_bizend(date_str):
-        try:
-            return pd.to_datetime(date_str)
-        except:
-            return FINAL_DATE
 
     v2b_reset["bizend"] = v2b_reset["bizend"].apply(
         lambda x: to_datetime_bizend(x)

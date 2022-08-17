@@ -5,6 +5,8 @@ import geopandas as gpd
 import pandas as pd
 from shapely import wkt
 
+FINAL_DATE = pd.to_datetime("2020-07-31 23:59:59.999")
+
 convert_to_timestamp = lambda x: time.mktime(
     datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S.%f").timetuple()
 )
@@ -32,3 +34,9 @@ def read_geodataframe(in_path, geom_col="geom"):
     df[geom_col] = df[geom_col].apply(wkt.loads)
     gdf = gpd.GeoDataFrame(df, geometry=geom_col)
     return gdf
+
+def to_datetime_bizend(date_str):
+    try:
+        return pd.to_datetime(date_str)
+    except:
+        return FINAL_DATE

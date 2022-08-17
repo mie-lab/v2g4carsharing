@@ -2,6 +2,7 @@
 data/
 outputs/
 figures/
+*.png
 
 # Mac
 .DS_Store

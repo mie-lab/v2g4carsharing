@@ -198,3 +198,7 @@ if __name__ == "__main__":
     # station z values compared to all other days
     compare_station_dist(res_real, res_sim, out_path=out_path)
 
+    # Further possible comparisons:
+    # - distance driven by user
+    # - borrowed duration by station / user
+

@@ -9,15 +9,15 @@ from shapely import wkt
 import matplotlib.pyplot as plt
 import scipy
 
-from import_data.import_utils import to_datetime_bizend
-from mode_choice_model.simple_choice_models import *
+from v2g4carsharing.import_data.import_utils import to_datetime_bizend
+from v2g4carsharing.mode_choice_model.simple_choice_models import *
 
 RANDOM_DATE = pd.to_datetime("2020-01-20")
 
 
-def carsharing_availability_one_day(date=RANDOM_DATE):
-    veh2base = pd.read_csv("../v2g4carsharing/data/vehicle_to_base.csv")
-    station_df = pd.read_csv("../v2g4carsharing/data/station_df.csv")
+def carsharing_availability_one_day(in_path, date=RANDOM_DATE):
+    veh2base = pd.read_csv(os.path.join(in_path, "vehicle_to_base.csv"))
+    station_df = pd.read_csv(os.path.join(in_path, "station_df.csv"))
     station_df["geom"] = station_df["geom"].apply(wkt.loads)
     station_df = gpd.GeoDataFrame(station_df, geometry="geom", crs="EPSG:4326")
     station_df = station_df.to_crs("EPSG:2056")
@@ -51,70 +51,29 @@ def carsharing_availability_one_day(date=RANDOM_DATE):
     return station_count
 
 
-def load_activities(cache_path="../external_repos/ch-zh-synpop/cache_2022/"):
-    # load geometry data
-    with open(
-        os.path.join(cache_path, "synthesis.population.spatial.locations__4a0fb9027293545c4692f3be972f79b8.p",), "rb",
-    ) as infile:
-        geoms = pickle.load(infile).set_index(["person_id", "activity_index"])
+def derive_decision_time(acts_gdf_mode):
+    # rename distance column if necessary
+    if "distance" not in acts_gdf_mode.columns:
+        if "feat_distance" not in acts_gdf_mode.columns:
+            raise RuntimeError("distance between geometries must be computed")
+        acts_gdf_mode.rename(columns={"feat_distane": "distance"}, inplace=True)
 
-    # load activity data
-    with open(
-        os.path.join(cache_path, "synthesis.population.activities__4a0fb9027293545c4692f3be972f79b8.p",), "rb",
-    ) as infile:
-        activities = pickle.load(infile).set_index(["person_id", "activity_index"])
-
-    acts = activities.merge(geoms, how="left", left_index=True, right_index=True)
-    print(
-        "Number activities", len(acts), "nr unique users", len(acts.reset_index()["person_id"].unique()),
-    )
-    acts = gpd.GeoDataFrame(acts, geometry="geometry")
-
-    # sort by person and activity_index
-    acts = acts.reset_index().sort_values(["person_id", "activity_index"])
-    # assign new IDs for activity identification
-    acts["id"] = np.arange(len(acts))
-    acts.set_index("id", inplace=True)
-
-    # get the previous geometry of each row
-    acts["prev_geometry"] = acts["geometry"].shift(1)
-    # get distance that must be travelled to this activity
-    acts["distance_from_prev"] = acts.distance(acts["prev_geometry"])
-
-    return acts
-
-
-def derive_decision_time(acts_gdf):
     avg_drive_speed = 50  # kmh
-    print("max distance between activities", round(acts_gdf["distance_from_prev"].max()))
+    print("max distance between activities", round(acts_gdf_mode["distance"].max()))
     # get appriximate travel time in minutes
-    acts_gdf["drive_time"] = 60 * acts_gdf["distance_from_prev"] / (1000 * avg_drive_speed)
+    acts_gdf_mode["drive_time"] = 60 * acts_gdf_mode["distance"] / (1000 * avg_drive_speed)
     # compute time for decision making
-    acts_gdf["mode_decision_time"] = (
-        acts_gdf["start_time"] - acts_gdf["drive_time"] * 60 - 10 * 60  # in seconds, giving 10min decision time
+    acts_gdf_mode["mode_decision_time"] = (
+        # in seconds, giving 10min decision time
+        acts_gdf_mode["start_time_sec_destination"]
+        - acts_gdf_mode["drive_time"] * 60
+        - 10 * 60
     )
-    # drop first activity
-    acts_gdf_mode = acts_gdf.dropna(subset="mode_decision_time")
-    # reduce to required columns
-    acts_gdf_mode = acts_gdf_mode[
-        [
-            "person_id",
-            "activity_index",
-            "mode_decision_time",
-            "start_time",
-            "end_time",
-            "duration",
-            "purpose",
-            "distance_from_prev",
-            "distance_to_station",
-            "closest_station",
-            "prev_distance_to_station",
-            "prev_closest_station",
-        ]
-    ]
+    # drop geometry for easier processing
+    acts_gdf_mode.drop(["geom_origin", "geom_destination"], axis=1, inplace=True)
     # drop the rows of activities that are repeated
     print("Number of activities", len(acts_gdf_mode))
-    acts_gdf_mode = acts_gdf_mode[acts_gdf_mode["distance_from_prev"] > 0]
+    acts_gdf_mode = acts_gdf_mode[acts_gdf_mode["distance"] > 0]
     print("Activities after dropping 0-distance ones:", len(acts_gdf_mode))
 
     # correct wrong decision times (sometimes they are lower than the one of the previous activity,
@@ -150,9 +109,9 @@ def assign_mode(acts_gdf_mode, per_station_veh_avail):
     for i, row in acts_gdf_mode.iterrows():
         # get necessary variables
         person_id = row["person_id"]
-        closest_station = row["prev_closest_station"]  # closest station at previous activity for starting
+        closest_station = row["closest_station_origin"]  # closest station at previous activity for starting
         nr_avail = len(per_station_veh_avail[closest_station])
-        distance = row["distance_from_prev"]
+        distance = row["distance"]
 
         # check if we already borrowed a car --> need to keep it for return trip
         shared_start = shared_starting_station.get(person_id, None)
@@ -161,7 +120,7 @@ def assign_mode(acts_gdf_mode, per_station_veh_avail):
             final_veh_ids.append(shared_vehicle)  # current veh ID is the shared vehicle
             final_modes.append("shared")
             # check whether we are back at the start station --> give back the car
-            if shared_start == row["closest_station"]:
+            if shared_start == row["closest_station_destination"]:
                 # give vehicle back to station
                 per_station_veh_avail[shared_start].append(shared_vehicle)
                 # clean the dictionary entries
@@ -174,7 +133,7 @@ def assign_mode(acts_gdf_mode, per_station_veh_avail):
         if nr_avail < 1:
             mode = "car"
         else:
-            # mode = distance_dependent_mode_choice(distance, row["prev_distance_to_station"])
+            # mode = distance_dependent_mode_choice(distance, row["distance_to_station_origin"])
             mode = simple_mode_choice(distance)
 
         # if shared, set vehicle as borrowed and remember the pick up station (for return)
@@ -246,11 +205,11 @@ def derive_reservations(acts_gdf_mode):
         "id": list,
         "person_id": "first",
         "vehicle_no": "first",
-        "distance_to_station": "last",
+        "distance_to_station_destination": "last",
         "mode_decision_time": "first",  # first decision time is the start of the booking
-        "start_time": "last",  # last start time is the end of the booking
-        "distance_from_prev": "sum",  # covered distance
-        "closest_station": "last",
+        "start_time_sec_destination": "last",  # last start time is the end of the booking
+        "distance": "sum",  # covered distance
+        "closest_station_destination": "last",
     }
     sim_reservations = shared_rides.reset_index().groupby(by="index_temp").agg(agg_dict)
     sim_reservations = sim_reservations.rename(
@@ -258,32 +217,45 @@ def derive_reservations(acts_gdf_mode):
             "id": "trip_ids",
             "person_id": "person_no",
             "mode_decision_time": "reservationfrom",
-            "start_time": "reservationto",
-            "closest_station": "start_station_no",
+            "start_time_sec_destination": "reservationto",
+            "closest_station_destination": "start_station_no",
         }
     )
     sim_reservations.index.name = "reservation_no"
 
     # amend with some more information
-    sim_reservations["drive_km"] = sim_reservations["distance_from_prev"] / 1000
+    sim_reservations["drive_km"] = sim_reservations["distance"] / 1000
     sim_reservations["duration"] = (sim_reservations["reservationto"] - sim_reservations["reservationfrom"]) / 60 / 60
 
     return sim_reservations
 
 
+def load_trips(in_path_sim_trips):
+    acts_gdf = pd.read_csv(os.path.join(in_path_sim_trips, "trips_enriched.csv")).set_index("id")
+    acts_gdf["geom_origin"] = acts_gdf["geom_origin"].apply(wkt.loads)
+    acts_gdf = gpd.GeoDataFrame(acts_gdf, geometry="geom_origin", crs="EPSG:2056")
+    acts_gdf["geom_destination"] = gpd.GeoSeries(acts_gdf["geom_destination"].apply(wkt.loads))
+    return acts_gdf
+
+
 if __name__ == "__main__":
-    save_name = "simple"
+    in_path = "data"
+    in_path_sim_trips = "../data/simulated_poulation/sim_2022/"
+    save_name = "after_refactor"
 
     # load activities and shared-cars availability
-    acts_gdf = load_activities()
-    station_count = carsharing_availability_one_day()
+    acts_gdf = load_trips(in_path_sim_trips)
+    station_count = carsharing_availability_one_day(in_path)
 
-    # merge both
-    acts_gdf = acts_gdf.sjoin_nearest(station_count, distance_col="distance_to_station")
-    acts_gdf.rename(columns={"index_right": "closest_station"}, inplace=True)
+    # get closest station to origin
+    acts_gdf = acts_gdf.sjoin_nearest(station_count, distance_col="distance_to_station_origin")
+    acts_gdf.rename(columns={"index_right": "closest_station_origin"}, inplace=True)
+    # get closest station to destination
+    acts_gdf.set_geometry("geom_destination", inplace=True)
+    acts_gdf = acts_gdf.sjoin_nearest(station_count, distance_col="distance_to_station_destination")
+    acts_gdf.rename(columns={"index_right": "closest_station_destination"}, inplace=True)
+    # sort
     acts_gdf.sort_values(["person_id", "activity_index"], inplace=True)
-    acts_gdf["prev_closest_station"] = acts_gdf["closest_station"].shift(1)
-    acts_gdf["prev_distance_to_station"] = acts_gdf["distance_to_station"].shift(1)
 
     # get time when decision is made
     acts_gdf = derive_decision_time(acts_gdf)

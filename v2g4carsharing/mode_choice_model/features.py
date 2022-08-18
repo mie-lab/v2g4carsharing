@@ -15,33 +15,6 @@ class ModeChoiceFeatures:
         self.trips = ti.io.file.read_trips_csv(
             os.path.join(path, "trips.csv"), tz="Europe/Amsterdam", index_col="id", geom_col="geom"
         )
-        sp = ti.io.file.read_staypoints_csv(os.path.join(path, "staypoints.csv"), index_col="id")
-        self.legs = ti.io.file.read_triplegs_csv(
-            os.path.join(path, "triplegs.csv"), tz="Europe/Amsterdam", index_col="id", geom_col="geom"
-        )
-
-        self.trips = self.trips.merge(
-            sp, how="left", left_on="origin_staypoint_id", right_index=True, suffixes=("", "_origin")
-        )
-        self.trips = self.trips.merge(
-            sp, how="left", left_on="destination_staypoint_id", right_index=True, suffixes=(None, "_destination")
-        )
-        # delete unnecessary columns
-        self.trips.drop(
-            [
-                "geom",
-                "user_id_origin",
-                "user_id_destination",
-                "next_trip_id_destination",
-                "trip_id_destination",
-                "next_trip_id",
-                "is_activity_destination",
-                "is_activity",
-                "finished_at_destination",
-            ],
-            axis=1,
-            inplace=True,
-        )
 
     def add_purpose_features(
         self, col_name="purpose_destination", included_purposes=["Home", "Leisure", "Work", "Shopping"]
@@ -112,42 +85,6 @@ class ModeChoiceFeatures:
         # clean
         self.trips.drop("geom", axis=1, inplace=True)
 
-    def add_mode_labels(self, by_variable="length"):
-        def ratio_of_modes(trip_rows, by_variable=by_variable):
-            """
-            ratio_by: {length, duration}
-            """
-            sum_df = trip_rows.groupby("mode")[by_variable].sum()
-            sum_df /= sum(sum_df)
-            return pd.DataFrame(sum_df)
-
-        modes = self.legs.groupby("trip_id").apply(ratio_of_modes)
-        modes = modes.reset_index().pivot(index="trip_id", columns="mode").fillna(0)[by_variable].reset_index()
-
-        self.trips = self.trips.merge(modes, how="left", left_index=True, right_on="trip_id")
-
-    def add_survey_features(
-        self, survey_path, survey_features=["p_birthdate", "p_sex", "oev_accessibility", "p_caraccess"],
-    ):
-        car_sharing_users = self.trips["user_id"].unique()
-        # add survey data
-        survey = pd.read_csv(survey_path).set_index(["participant_id"])
-        # get car sharing users
-        survey_car_sharing_users = (survey.loc[car_sharing_users])[survey_features]
-        # show all columns --> could keep p_language for example etc
-        # list(survey_car_sharing_users.columns)
-
-        # only keep the first entry for each participant (removing duplicates in survey)
-        survey_car_sharing_users = survey_car_sharing_users.reset_index().groupby("participant_id").agg("first")
-
-        # preprocess survey columns
-        access_values = {"noaccess": 0, "after_consultation": 0.5, "always": 1}
-        output_df = pd.DataFrame(index=survey_car_sharing_users.index)
-        output_df["feat_age"] = 2022 - survey_car_sharing_users["p_birthdate"]
-        output_df["feat_sex"] = survey_car_sharing_users["p_sex"].apply(lambda x: 0 if x == "male" else 1)
-        output_df["feat_caraccess"] = survey_car_sharing_users["p_caraccess"].map(access_values)
-        output_df["feat_oev_accessibility"] = survey_car_sharing_users["oev_accessibility"].copy()
-        self.trips = self.trips.merge(output_df, left_on="user_id", right_on="participant_id")
 
     def add_time_features(self, origin_or_destination="origin"):
         # TODO: sin cos
@@ -180,14 +117,14 @@ class ModeChoiceFeatures:
         print(time.time() - tic, "\nAdd survey features:")
         tic = time.time()
         # warning only comes up when reading the survey data
-        self.add_survey_features(
-            os.path.join("../../teaching/mobis_project/MOBIS_Covid_version_2_raubal", "tracking/participants.csv"),
-            survey_features=["p_birthdate", "p_sex", "oev_accessibility", "p_caraccess"],
-        )
-        print(time.time() - tic, "\nAdd mode labels:")
-        tic = time.time()
-        self.add_mode_labels()
-        print(time.time() - tic) # , "\nAdd weather:" --> Weather not necessary because not possible for future!
+        # self.add_survey_features(
+        #     os.path.join("../../teaching/mobis_project/MOBIS_Covid_version_2_raubal", "tracking/participants.csv"),
+        #     survey_features=["p_birthdate", "p_sex", "oev_accessibility", "p_caraccess"],
+        # )
+        # print(time.time() - tic, "\nAdd mode labels:")
+        # tic = time.time()
+        # self.add_mode_labels()
+        # print(time.time() - tic)  # , "\nAdd weather:" --> Weather not necessary because not possible for future!
         # tic = time.time()
         # self.add_weather()
         # print(time.time() - tic)

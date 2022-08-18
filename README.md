@@ -61,3 +61,5 @@ python scripts/train_mode_choice_mlp.py
 See [simple_choice_models](v2g4carsharing/mode_choice_model/simple_choice_models.py)
 
 ### Generating a synthetic population
+
+The synthetic population is generated with the eqasim 

@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 import scipy
 
 from v2g4carsharing.import_data.import_utils import to_datetime_bizend
-from v2g4carsharing.mode_choice_model.simple_choice_models import *
 
 RANDOM_DATE = pd.to_datetime("2020-01-20")
 
@@ -96,7 +95,7 @@ def derive_decision_time(acts_gdf_mode):
     return acts_gdf_mode
 
 
-def assign_mode(acts_gdf_mode, per_station_veh_avail):
+def assign_mode(acts_gdf_mode, per_station_veh_avail, mode_choice_function):
     # now sort by mode decision time, not by person
     acts_gdf_mode = acts_gdf_mode.sort_values("mode_decision_time")
     # keep track for each person where their shared trips started
@@ -133,8 +132,7 @@ def assign_mode(acts_gdf_mode, per_station_veh_avail):
         if nr_avail < 1:
             mode = "car"
         else:
-            # mode = distance_dependent_mode_choice(distance, row["distance_to_station_origin"])
-            mode = simple_mode_choice(distance)
+            mode = mode_choice_function(row)
 
         # if shared, set vehicle as borrowed and remember the pick up station (for return)
         if mode == "shared":
@@ -231,7 +229,7 @@ def derive_reservations(acts_gdf_mode):
 
 
 def load_trips(in_path_sim_trips):
-    acts_gdf = pd.read_csv(os.path.join(in_path_sim_trips, "trips_enriched.csv")).set_index("id")
+    acts_gdf = pd.read_csv(in_path_sim_trips).set_index("id")
     print("Loaded trips", len(acts_gdf))
     acts_gdf.dropna(subset=["geom_origin", "geom_destination"], inplace=True)
     acts_gdf["geom_origin"] = acts_gdf["geom_origin"].apply(wkt.loads)

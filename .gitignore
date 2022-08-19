@@ -3,6 +3,7 @@ data/
 outputs/
 figures/
 *.png
+trained_models/
 
 # Mac
 .DS_Store

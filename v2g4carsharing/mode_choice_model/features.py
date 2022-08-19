@@ -15,7 +15,7 @@ from v2g4carsharing.simulate.car_sharing_patterns import load_trips
 class ModeChoiceFeatures:
     def __init__(self, path="../data/mobis"):
         self.path = path
-        self.trips = load_trips(path)
+        self.trips = load_trips(os.path.join(path, "trips_enriched.csv"))
 
     def add_purpose_features(
         self, col_name="purpose_destination", included_purposes=["home", "leisure", "work", "shopping", "education"]

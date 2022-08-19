@@ -1,8 +1,9 @@
 import pandas as pd
 
 
-def prepare_data(trips, min_number_trips=500):
-    dataset = trips.drop(["geom", "geom_origin", "geom_destination"], axis=1)
+def prepare_data(trips, min_number_trips=500, return_normed=True):
+    # drop geometry if it exists
+    dataset = trips.drop(["geom", "geom_origin", "geom_destination"], axis=1, errors='ignore')
     print("Dataset raw", len(dataset))
     # only include frequently used modes
     nr_trips_with_mode = trips[[col for col in trips.columns if col.startswith("Mode")]].sum()
@@ -30,10 +31,14 @@ def prepare_data(trips, min_number_trips=500):
     # convert features to array
     feat_cols = [col for col in dataset.columns if col.startswith("feat")]
     feat_array = dataset[feat_cols]
-    # normalize
-    feat_array_normed = (feat_array - feat_array.mean()) / feat_array.std()
 
     labels = dataset[included_modes]
-    print("labels", labels.shape, "features", feat_array_normed.shape)
+    print("labels", labels.shape, "features", feat_array.shape)
+    
+    if return_normed:
+        # normalize
+        feat_mean, feat_std = feat_array.mean(), feat_array.std()
+        feat_array_normed = (feat_array - feat_mean) / feat_std
+        return feat_array_normed, labels, (feat_mean, feat_std)
 
-    return feat_array_normed, labels
+    return feat_array, labels

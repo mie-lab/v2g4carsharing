@@ -64,27 +64,30 @@ class ModeChoiceFeatures:
         weather_data.rename(columns={c: "feat_weather_" + c for c in weather_data.columns}, inplace=True)
         self.trips = self.trips.merge(weather_data, how="left", left_index=True, right_index=True)
 
-    def add_dist2station(self, station_path="data/station.csv", origin_or_destination="origin"):
-        # distance to next car sharing station
-
+    def add_dist2station(self, station_path=os.path.join("data", "station.csv")):
+        """Compute distance to next car sharing station"""
         # read station data
         station = pd.read_csv(station_path, index_col="station_no")
+        # filter for stations that actually appear in our booking data
+        station = station[station["in_reservation"]]
+        # load geom
         station["geom"] = station["geom"].apply(wkt.loads)
         station = gpd.GeoDataFrame(station, geometry="geom")
         station.geometry.crs = "EPSG:4326"
         station["geom"] = station.geometry.to_crs("EPSG:2056")
 
-        self.trips = self.trips.set_geometry(f"geom_{origin_or_destination}")
-        self.trips.drop(["index_right", "station_no"], inplace=True, axis=1, errors="ignore")
-        # get nearest station no
-        self.trips = self.trips.sjoin_nearest(station.reset_index()[["station_no", "geom"]])
-        # get corresponding geometry (after self.trips already has the attribute station no)
-        self.trips = self.trips.merge(station[["geom"]], how="left", left_on="station_no", right_index=True)
-        self.trips[f"feat_{origin_or_destination}_dist2station"] = self.trips["geom"].distance(
-            self.trips[f"geom_{origin_or_destination}"]
-        )
-        # clean
-        self.trips.drop("geom", axis=1, inplace=True)
+        # get closest station to origin
+        self.trips.set_geometry("geom_origin", inplace=True)
+        self.trips = self.trips.sjoin_nearest(station[["geom"]], distance_col="distance_to_station_origin")
+        self.trips.rename(columns={"index_right": "closest_station_origin"}, inplace=True)
+        # get closest station to destination
+        self.trips.set_geometry("geom_destination", inplace=True)
+        self.trips = self.trips.sjoin_nearest(station[["geom"]], distance_col="distance_to_station_destination")
+        self.trips.rename(columns={"index_right": "closest_station_destination"}, inplace=True)
+
+        # use as features as well as for car sharing data generation
+        for col in ["origin", "destination"]:
+            self.trips["feat_distance_to_station_" + col] = self.trips["distance_to_station_" + col].copy()
 
     def add_time_features(self, origin_or_destination="origin"):
         # TODO: sin cos
@@ -108,17 +111,19 @@ class ModeChoiceFeatures:
         self.add_pt_accessibility(origin_or_destination="destination")
         print(time.time() - tic, "\nAdd dist2station:")
         tic = time.time()
-        self.add_dist2station(origin_or_destination="origin")
-        self.add_dist2station(origin_or_destination="destination")
+        self.add_dist2station()
         print(time.time() - tic, "\nAdd time:")
         tic = time.time()
         self.add_time_features(origin_or_destination="origin")
         self.add_time_features(origin_or_destination="destination")
         print(time.time() - tic)
 
-    def save(self):
+    def save(self, remove_geom=False):
         # remove geom (for more efficient saving)
-        out_trips = self.trips.drop([col for col in self.trips.columns if "geom" in col], axis=1)
+        if remove_geom:
+            out_trips = self.trips.drop([col for col in self.trips.columns if "geom" in col], axis=1)
+        else:
+            out_trips = self.trips
         out_trips.to_csv(os.path.join(self.path, "trips_features.csv"))
 
     # -----------------------

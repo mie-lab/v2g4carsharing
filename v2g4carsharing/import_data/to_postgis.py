@@ -4,7 +4,7 @@ import json
 import pandas as pd
 import os
 
-from import_utils import read_geodataframe
+from v2g4carsharing.import_data.import_utils import read_geodataframe
 
 
 def write_to_postgis(local_path, path_credentials):

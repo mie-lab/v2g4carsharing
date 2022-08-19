@@ -1,5 +1,5 @@
 import pandas as pd
-from import_utils import to_datetime_bizend
+from v2g4carsharing.import_data.import_utils import to_datetime_bizend
 
 BASE_DATE = pd.to_datetime('2019-01-01 00:00:00.000')
 FINAL_DATE = pd.to_datetime("2020-07-31 23:59:59.999")

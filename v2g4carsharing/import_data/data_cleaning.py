@@ -8,11 +8,11 @@ from shapely.geometry import Point
 import seaborn as sns
 import json
 
-from import_utils import (
+from v2g4carsharing.import_data.import_utils import (
     lon_lat_to_geom, write_geodataframe, read_geodataframe,
     convert_to_timestamp
 )
-from preprocess_relocations import v2b_to_relocations
+from v2g4carsharing.import_data.preprocess_relocations import v2b_to_relocations
 
 
 def preprocess_user(source_path, plot_path=None):
@@ -87,7 +87,7 @@ def preprocess_reservation(source_path):
     return data_booking
 
 
-def preprocess_station(source_path, check_duplicates=False, path_for_duplicates=None):
+def preprocess_station(source_path, path_for_duplicates=None):
     data_station = pd.read_excel(
         os.path.join(source_path, "20220204_eth_base.xlsx")
     )
@@ -103,7 +103,8 @@ def preprocess_station(source_path, check_duplicates=False, path_for_duplicates=
         data_station, 
         geometry=gpd.points_from_xy(data_station["LON"],
         data_station["LAT"]), crs="EPSG:4326")
-    if check_duplicates:
+    print("nr stations", len(data_station))
+    if path_for_duplicates is not None:
         # read reservations and get bookings per station
         res = pd.read_csv(os.path.join(path_for_duplicates, "reservation.csv"))
         res = res.groupby("start_station_no").agg({"start_station_no": "count"})
@@ -112,7 +113,7 @@ def preprocess_station(source_path, check_duplicates=False, path_for_duplicates=
         temp = Point(6.165548, 46.29)
         temp = gpd.GeoDataFrame([temp], columns=["geom"]).set_geometry("geom")
         temp.crs = "EPSG:4326"
-        temp_station = data_station[["geom"]].copy()
+        temp_station = data_station[["geometry"]].copy()
         temp_station = temp_station.sjoin_nearest(temp, distance_col="dist")
         # merge with reservation
         temp_station = temp_station.merge(
@@ -127,6 +128,8 @@ def preprocess_station(source_path, check_duplicates=False, path_for_duplicates=
             temp_station[["duplicated"]], how="left",
             left_index=True, right_index=True
         )
+        data_station["duplicated"] = data_station["duplicated"].fillna(True)
+        print("nr stations after duplicate check", len(data_station))
 
     return data_station
 

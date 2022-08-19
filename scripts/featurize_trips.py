@@ -25,13 +25,15 @@ def compare_feature_distributions(mobis_feat_path, sim_feat_path):
             )
             if abs(z) > 1.96:
                 print("ATTENTION: significant z value")
-            feat_comp_table.append({
+            feat_comp_table.append(
+                {
                     "mobis_mean": np.mean(mobis_feat[col]),
                     "mobis_std": np.std(mobis_feat[col]),
                     "sim_mean": np.mean(sim_feat[col]),
                     "sim_std": np.std(sim_feat[col]),
-                    "z value": z
-                })
+                    "z value": z,
+                }
+            )
         pd.DataFrame(feat_comp_table)
 
 
@@ -45,14 +47,18 @@ if __name__ == "__main__":
         default=os.path.join("..", "data", "simulated_population", "sim_2022"),
         help="path to preprocessed trips",
     )
+    parser.add_argument(
+        "-k", "--keep_geom", action="store_true", help="if flag set, keep the geometry column",
+    )
     args = parser.parse_args()
     # Set paths:
     # for simulated: "../data/simulated_population/sim_2022"
     # for mobis: "../data/mobis/"
 
     in_path = args.in_path
+    print("Removing geometry?", not args.keep_geom)
 
     feat_collector = ModeChoiceFeatures(in_path)
     feat_collector.add_all_features()
-    feat_collector.save()
+    feat_collector.save(remove_geom=(not args.keep_geom))
 

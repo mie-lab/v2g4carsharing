@@ -23,7 +23,7 @@ if __name__ == "__main__":
     # load and preprocess all
     data_user = preprocess_user(source_path)
     data_vehicle = preprocess_vehicle(source_path)
-    data_station = preprocess_station(source_path)
+    data_station = preprocess_station(source_path) # , path_for_duplicates=out_path)
     data_reservation = preprocess_reservation(source_path)
     data_v2b = preprocess_v2b(source_path)
 
@@ -42,6 +42,12 @@ if __name__ == "__main__":
             new_names["BASEEND_NO"] = "end_station_no"
         if df_name == "vehicle_to_base":
             new_names["BASE_NO"] = "station_no"
+        if df_name == "station":
+            # Add the variable whether it's in the reservations
+            new_names["geometry"] = "geom"
+            # data_reservation = pd.read_csv("data/reservation.csv")
+            df["in_reservation"] = df.index.isin(data_reservation["start_station_no"].unique())
+            print("In reservations", sum(df["in_reservation"]))
 
         df = df.reset_index().rename(columns=new_names).set_index(index_name.lower())
 

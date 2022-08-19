@@ -9,15 +9,16 @@ from meteostat import Hourly, Daily
 from meteostat import Point as MeteoPoint
 from datetime import timedelta
 
+from v2g4carsharing.simulate.car_sharing_patterns import load_trips
+
 
 class ModeChoiceFeatures:
     def __init__(self, path="../data/mobis"):
-        self.trips = ti.io.file.read_trips_csv(
-            os.path.join(path, "trips.csv"), tz="Europe/Amsterdam", index_col="id", geom_col="geom"
-        )
+        self.path = path
+        self.trips = load_trips(path)
 
     def add_purpose_features(
-        self, col_name="purpose_destination", included_purposes=["Home", "Leisure", "Work", "Shopping"]
+        self, col_name="purpose_destination", included_purposes=["home", "leisure", "work", "shopping", "education"]
     ):
         included_w_prefix = ["feat_" + col_name + "_" + p for p in included_purposes]
         one_hot = pd.get_dummies(self.trips[col_name], prefix="feat_" + col_name)[included_w_prefix]
@@ -63,7 +64,7 @@ class ModeChoiceFeatures:
         weather_data.rename(columns={c: "feat_weather_" + c for c in weather_data.columns}, inplace=True)
         self.trips = self.trips.merge(weather_data, how="left", left_index=True, right_index=True)
 
-    def add_dist2station(self, station_path="../v2g4carsharing/data/station.csv", origin_or_destination="origin"):
+    def add_dist2station(self, station_path="data/station.csv", origin_or_destination="origin"):
         # distance to next car sharing station
 
         # read station data
@@ -85,7 +86,6 @@ class ModeChoiceFeatures:
         # clean
         self.trips.drop("geom", axis=1, inplace=True)
 
-
     def add_time_features(self, origin_or_destination="origin"):
         # TODO: sin cos
         col_name = "started_at_" + origin_or_destination
@@ -101,7 +101,7 @@ class ModeChoiceFeatures:
         print(time.time() - tic, "\nAdd purpose:")
         tic = time.time()
         self.add_purpose_features("purpose_destination")
-        self.add_purpose_features("purpose")
+        self.add_purpose_features("purpose_origin")
         print(time.time() - tic, "\nAdd pt accessibility:")
         tic = time.time()
         self.add_pt_accessibility(origin_or_destination="origin")
@@ -114,25 +114,12 @@ class ModeChoiceFeatures:
         tic = time.time()
         self.add_time_features(origin_or_destination="origin")
         self.add_time_features(origin_or_destination="destination")
-        print(time.time() - tic, "\nAdd survey features:")
-        tic = time.time()
-        # warning only comes up when reading the survey data
-        # self.add_survey_features(
-        #     os.path.join("../../teaching/mobis_project/MOBIS_Covid_version_2_raubal", "tracking/participants.csv"),
-        #     survey_features=["p_birthdate", "p_sex", "oev_accessibility", "p_caraccess"],
-        # )
-        # print(time.time() - tic, "\nAdd mode labels:")
-        # tic = time.time()
-        # self.add_mode_labels()
-        # print(time.time() - tic)  # , "\nAdd weather:" --> Weather not necessary because not possible for future!
-        # tic = time.time()
-        # self.add_weather()
-        # print(time.time() - tic)
+        print(time.time() - tic)
 
-    def save(self, path):
+    def save(self):
         # remove geom (for more efficient saving)
         out_trips = self.trips.drop([col for col in self.trips.columns if "geom" in col], axis=1)
-        out_trips.to_csv(os.path.join(path, "trips_enriched.csv"))
+        out_trips.to_csv(os.path.join(self.path, "trips_features.csv"))
 
     # -----------------------
 

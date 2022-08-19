@@ -232,8 +232,11 @@ def derive_reservations(acts_gdf_mode):
 
 def load_trips(in_path_sim_trips):
     acts_gdf = pd.read_csv(os.path.join(in_path_sim_trips, "trips_enriched.csv")).set_index("id")
+    print("Loaded trips", len(acts_gdf))
+    acts_gdf.dropna(subset=["geom_origin", "geom_destination"], inplace=True)
     acts_gdf["geom_origin"] = acts_gdf["geom_origin"].apply(wkt.loads)
     acts_gdf = gpd.GeoDataFrame(acts_gdf, geometry="geom_origin", crs="EPSG:2056")
     acts_gdf["geom_destination"] = gpd.GeoSeries(acts_gdf["geom_destination"].apply(wkt.loads))
+    print("removed nan geometries and loaded geometry, leftover trips:", len(acts_gdf))
     return acts_gdf
 

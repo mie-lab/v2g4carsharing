@@ -23,7 +23,7 @@ if __name__ == "__main__":
 
     # 2) Simulated data
     CACHE_PATH = "../external_repos/ch-zh-synpop/cache_2022/"
-    OUT_PATH = "../data/simulated_poulation/sim_2022"
+    OUT_PATH = "../data/simulated_population/sim_2022"
     SIM_DATE = "2020-01-20"
 
     processor = SimTripProcessor(CACHE_PATH, OUT_PATH)

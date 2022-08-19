@@ -26,7 +26,7 @@ if __name__ == "__main__":
         "-s",
         "--in_path_sim_trips",
         type=str,
-        default="../data/simulated_poulation/sim_2022",
+        default=os.path.join("..", "data", "simulated_population", "sim_2022"),
         help="path to simulated trips csv",
     )
     # path to use for postgis_json_path argument: "../../dblogin_mielab.json"

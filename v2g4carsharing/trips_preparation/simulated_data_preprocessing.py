@@ -11,7 +11,7 @@ from regex import D
 
 class SimTripProcessor:
     def __init__(
-        self, cache_path="../external_repos/ch-zh-synpop/cache_2022/", out_path="../data/simulated_poulation/sim_2022"
+        self, cache_path="../external_repos/ch-zh-synpop/cache_2022/", out_path="../data/simulated_population/sim_2022"
     ):
         """
         Load raw synthetic activities and transform into Geodataframe
@@ -68,6 +68,8 @@ class SimTripProcessor:
         self.acts["geom_origin"] = self.acts["geometry"].shift(1)  # TODO
         # get distance that must be travelled to this activity
         self.acts["distance"] = self.acts.distance(self.acts["geom_origin"])
+        # correct purpose
+        self.acts.loc[self.acts["purpose"] == "shop", ["purpose"]] = "shopping"
         # get purpose of origin
         self.acts["purpose_origin"] = self.acts["purpose"].shift(1)
         # get previous start and end time

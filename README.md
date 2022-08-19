@@ -1,10 +1,10 @@
-# Vehicle-to-grid strategies for car sharing systems
+# Vehicle-to-grid for car sharing systems
 
 ## Data preparation for V2G optimization
 
 The first module in this repo is for preprocessing car sharing data for optimizing charging and discharging operations. There are two modules:
 
-### import data
+#### import data
 
 This module has all code for importing the raw car sharing data, for preprocessing, and for writing data to a PostGIS database. To execute these functions, check out the script
 ```
@@ -20,7 +20,7 @@ optional arguments:
                         path to postgis access json file
 ```
 
-### optimization data
+#### optimization data
 
 This module contains all code to transform the car sharing reservations into suitable input to an optimization algorithm. This includes:
 * Computing the state of charge
@@ -45,7 +45,29 @@ optional arguments:
 
 ## Simulation
 
-### Training a mode choice model
+#### Generating a synthetic population
+
+The synthetic population is generated with the synthetic population modula published by the IVT group. We use an ETH internal version of their [synpp codebase](https://github.com/eqasim-org/synpp). The code uses data from the fereral statistics office in Switzerland to generate mobility patterns for a synthetic simulation. The output are activities (with geographic coordinates for locations) and population metadata for a synthetic population. We use a suitable [configuration](v2g4carsharing/simulate/config.yml) for their pipeline.
+
+We did only one major change to their code, which is copied here for version control. It regards the sampling of the population, which we do by the distance of the people to the next car sharing station. See our [script](v2g4carsharing/simulate/draw_car_sharing_population.py) for this code, which is excecuted in the synpp repository (it can however be tested here with data generated with synpp).
+
+#### Preprocessing and featurizing MOBIS and simulated trips data
+
+We first transform activities into trips for both of them (by shifting the dataframe such that we always have origin and destination geometry/purpose/starttime). 
+
+Run:
+```
+python scripts/preprocess_trips.py
+```
+This uses the raw mobis data and the raw simulated population data (output of synpp module) and generates trips in the same format with the same features.
+
+We then add more features to the trips, i.e. geographic features such as pt accessability, distance to stations, etc.
+Run:
+```
+python scripts/featurize_trips.py
+```
+
+#### Training a mode choice model
 
 For simulating car sharing patterns, we train a mode choice model. For each trip, dependent on geographic features, time and activity purpose and distance, we predict the used mode. 
 Different models are implemented. 
@@ -60,6 +82,40 @@ python scripts/train_mode_choice_mlp.py
 
 See [simple_choice_models](v2g4carsharing/mode_choice_model/simple_choice_models.py)
 
-### Generating a synthetic population
 
-The synthetic population is generated with the eqasim 
+#### Generate synthetic car sharing booking data
+
+The trained mode choice model (or a simple baseline model) can now be used to generate car sharing data. All trips are considered sequentially and a mode is assigned. Then, the mode-ammended-trips are converted to car sharing bookings.
+
+Run:
+
+```
+python generate_car_sharing_data.py [-h] [-i IN_PATH_CAR_SHARING] [-o OUT_PATH] [-s IN_PATH_SIM_TRIPS]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i IN_PATH_CAR_SHARING, --in_path_car_sharing IN_PATH_CAR_SHARING
+                        path to Mobility car sharing data
+  -o OUT_PATH, --out_path OUT_PATH
+                        path to save output
+  -s IN_PATH_SIM_TRIPS, --in_path_sim_trips IN_PATH_SIM_TRIPS
+                        path to simulated trips csv
+```
+
+#### Evaluate the generation by comparing the distributions of simulated and real data
+
+We can use the generated car sharing data and compare it to the real data from Mobility.
+
+Run:
+```
+python evaluate_simulated_data.py [-h] [-i IN_PATH_SIM] [-d REAL_DATA_PATH] [-o OUT_PATH]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i IN_PATH_SIM, --in_path_sim IN_PATH_SIM
+                        path to simulated data
+  -d REAL_DATA_PATH, --real_data_path REAL_DATA_PATH
+                        path to Mobility car sharing data
+  -o OUT_PATH, --out_path OUT_PATH
+                        path to save output figures
+```

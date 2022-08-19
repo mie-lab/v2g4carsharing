@@ -168,37 +168,3 @@ def get_real_daily(in_path):
     return res_real
 
 
-if __name__ == "__main__":
-    in_path_sim = os.path.join("outputs", "simulated_car_sharing")
-    in_path_real = os.path.join("..", "v2g4carsharing", "data")
-    sim_name = "simple"
-    out_path = os.path.join("outputs", "simulated_car_sharing", "distribution_comp_" + sim_name)
-    os.makedirs(out_path, exist_ok=True)
-
-    # real reservations for the whole time period
-    res_real = get_real_daily(in_path_real)
-    # simulated reservations
-    res_sim = pd.read_csv(os.path.join(in_path_sim, sim_name + ".csv"), index_col="reservation_no")
-
-    # user activity
-    compare_user_dist(res_real, res_sim)
-
-    # duration, start and end distributions
-    res_real["duration"] = (res_real["reservationto"] - res_real["reservationfrom"]) / 60 / 60
-    compare_hist_dist(res_real, res_sim, "duration", out_path=out_path)
-    compare_hist_dist(res_real, res_sim, "reservationfrom", out_path=out_path)
-    compare_hist_dist(res_real, res_sim, "reservationto", out_path=out_path)
-
-    # driven distances
-    compare_hist_dist(res_real, res_sim, "drive_km", out_path=out_path)
-
-    # station distribution for a single real day
-    # compare_station_dist_one_day(res_sim, in_path_real, out_path)
-
-    # station z values compared to all other days
-    compare_station_dist(res_real, res_sim, out_path=out_path)
-
-    # Further possible comparisons:
-    # - distance driven by user
-    # - borrowed duration by station / user
-

@@ -237,37 +237,3 @@ def load_trips(in_path_sim_trips):
     acts_gdf["geom_destination"] = gpd.GeoSeries(acts_gdf["geom_destination"].apply(wkt.loads))
     return acts_gdf
 
-
-if __name__ == "__main__":
-    in_path = "data"
-    in_path_sim_trips = "../data/simulated_poulation/sim_2022/"
-    save_name = "after_refactor"
-
-    # load activities and shared-cars availability
-    acts_gdf = load_trips(in_path_sim_trips)
-    station_count = carsharing_availability_one_day(in_path)
-
-    # get closest station to origin
-    acts_gdf = acts_gdf.sjoin_nearest(station_count, distance_col="distance_to_station_origin")
-    acts_gdf.rename(columns={"index_right": "closest_station_origin"}, inplace=True)
-    # get closest station to destination
-    acts_gdf.set_geometry("geom_destination", inplace=True)
-    acts_gdf = acts_gdf.sjoin_nearest(station_count, distance_col="distance_to_station_destination")
-    acts_gdf.rename(columns={"index_right": "closest_station_destination"}, inplace=True)
-    # sort
-    acts_gdf.sort_values(["person_id", "activity_index"], inplace=True)
-
-    # get time when decision is made
-    acts_gdf = derive_decision_time(acts_gdf)
-
-    # keep track in a dictionary how many vehicles are available at each station
-    per_station_veh_avail = station_count["vehicle_list"].to_dict()
-
-    # Run: iteratively assign modes
-    acts_gdf_mode = assign_mode(acts_gdf, per_station_veh_avail)
-
-    # get shared only and derive the reservations by merging subsequent car sharing trips
-    sim_reservations = derive_reservations(acts_gdf_mode)
-
-    sim_reservations.to_csv(os.path.join("outputs", "simulated_car_sharing", save_name + ".csv"))
-

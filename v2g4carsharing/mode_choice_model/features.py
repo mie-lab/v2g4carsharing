@@ -12,6 +12,18 @@ from datetime import timedelta
 from v2g4carsharing.simulate.car_sharing_patterns import load_trips
 
 
+def compute_dist_to_station(trips, station):
+    # get closest station to origin
+    trips.set_geometry("geom_origin", inplace=True)
+    trips = trips.sjoin_nearest(station[["geom"]], distance_col="distance_to_station_origin")
+    trips.rename(columns={"index_right": "closest_station_origin"}, inplace=True)
+    # get closest station to destination
+    trips.set_geometry("geom_destination", inplace=True)
+    trips = trips.sjoin_nearest(station[["geom"]], distance_col="distance_to_station_destination")
+    trips.rename(columns={"index_right": "closest_station_destination"}, inplace=True)
+    return trips
+
+
 class ModeChoiceFeatures:
     def __init__(self, path="../data/mobis"):
         self.path = path
@@ -76,14 +88,7 @@ class ModeChoiceFeatures:
         station.geometry.crs = "EPSG:4326"
         station["geom"] = station.geometry.to_crs("EPSG:2056")
 
-        # get closest station to origin
-        self.trips.set_geometry("geom_origin", inplace=True)
-        self.trips = self.trips.sjoin_nearest(station[["geom"]], distance_col="distance_to_station_origin")
-        self.trips.rename(columns={"index_right": "closest_station_origin"}, inplace=True)
-        # get closest station to destination
-        self.trips.set_geometry("geom_destination", inplace=True)
-        self.trips = self.trips.sjoin_nearest(station[["geom"]], distance_col="distance_to_station_destination")
-        self.trips.rename(columns={"index_right": "closest_station_destination"}, inplace=True)
+        self.trips = compute_dist_to_station(self.trips, station)
 
         # use as features as well as for car sharing data generation
         for col in ["origin", "destination"]:

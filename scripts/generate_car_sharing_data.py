@@ -4,11 +4,13 @@ import pickle
 import argparse
 import pandas as pd
 from v2g4carsharing.mode_choice_model.random_forest import RandomForestWrapper
+from v2g4carsharing.mode_choice_model.features import compute_dist_to_station
 from v2g4carsharing.simulate.car_sharing_patterns import (
     load_trips,
-    carsharing_availability_one_day,
+    load_station_scenario,
     derive_decision_time,
     derive_reservations,
+    load_stations,
     assign_mode,
 )
 
@@ -35,6 +37,13 @@ if __name__ == "__main__":
         help="path to save output",
     )
     parser.add_argument(
+        "-t",
+        "--station_scenario",
+        type=str,
+        default=os.path.join("csv", "station_scenario", "same_stations.csv"),
+        help="path to station_scenario",
+    )
+    parser.add_argument(
         "-m",
         "--model_path",
         type=str,
@@ -56,15 +65,26 @@ if __name__ == "__main__":
     with open(args.model_path, "rb") as infile:
         mode_choice_model = pickle.load(infile)
 
-    station_count = carsharing_availability_one_day(in_path_carsharing)
+    station_scenario = load_station_scenario(args.station_scenario)
 
     # get closest station to origin
-    acts_gdf = acts_gdf.sjoin_nearest(station_count, distance_col="distance_to_station_origin")
-    acts_gdf.rename(columns={"index_right": "closest_station_origin"}, inplace=True)
-    # get closest station to destination
-    acts_gdf.set_geometry("geom_destination", inplace=True)
-    acts_gdf = acts_gdf.sjoin_nearest(station_count, distance_col="distance_to_station_destination")
-    acts_gdf.rename(columns={"index_right": "closest_station_destination"}, inplace=True)
+    stations_in_trips = np.union1d(acts_gdf["closest_station_origin"], acts_gdf["closest_station_destination"])
+    # Check if all stations appear in the station scenario
+    assert len(stations_in_trips) == len(
+        np.intersect1d(stations_in_trips, station_scenario.index)
+    ), "Problem: All stations that appear as the closest station must appear in the station scenario"
+
+    if "same_stations" not in args.station_scenario:
+        # If we have the same stations, the distance to the closest station is automatically computed in the feature
+        # computation. If we have more stations, we need to recompute where is the closest station (or do it at runtime
+        # for computing the closest station that has vehicles available)
+        assert "geom_origin" in acts_gdf.columns, "acts gdf must have geometry to recompute distance to station"
+        station_df = load_stations(in_path_carsharing)
+        # add geometry to scenario
+        station_scenario = station_scenario.merge(station_df[["geom"]], left_index=True, right_index=True, how="left")
+        # compute dist to station for each trip start and end point
+        acts_gdf = compute_dist_to_station(acts_gdf, station_scenario)
+
     # sort
     acts_gdf.sort_values(["person_id", "activity_index"], inplace=True)
 
@@ -72,7 +92,7 @@ if __name__ == "__main__":
     acts_gdf = derive_decision_time(acts_gdf)
 
     # keep track in a dictionary how many vehicles are available at each station
-    per_station_veh_avail = station_count["vehicle_list"].to_dict()
+    per_station_veh_avail = station_scenario["vehicle_list"].to_dict()
 
     # Run: iteratively assign modes
     acts_gdf_mode = assign_mode(acts_gdf, per_station_veh_avail, mode_choice_model)

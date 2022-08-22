@@ -1,3 +1,4 @@
+from operator import index
 import numpy as np
 import geopandas as gpd
 from shapely.geometry import Point
@@ -7,6 +8,7 @@ import time
 import pandas as pd
 from shapely import wkt
 import matplotlib.pyplot as plt
+import warnings
 import scipy
 
 from v2g4carsharing.import_data.import_utils import to_datetime_bizend
@@ -14,13 +16,24 @@ from v2g4carsharing.import_data.import_utils import to_datetime_bizend
 RANDOM_DATE = pd.to_datetime("2020-01-20")
 
 
-def carsharing_availability_one_day(in_path, date=RANDOM_DATE):
-    veh2base = pd.read_csv(os.path.join(in_path, "vehicle_to_base.csv"))
-    station_df = pd.read_csv(os.path.join(in_path, "station_df.csv"))
+def load_stations(path_car_sharing_data):
+    station_df = pd.read_csv(os.path.join(path_car_sharing_data, "station.csv"), index_col="station_no")
+    # load geom
     station_df["geom"] = station_df["geom"].apply(wkt.loads)
     station_df = gpd.GeoDataFrame(station_df, geometry="geom", crs="EPSG:4326")
     station_df = station_df.to_crs("EPSG:2056")
-    station_df.set_index("station_no", inplace=True)
+    return station_df
+
+
+def carsharing_availability_one_day(in_path, date=RANDOM_DATE):
+    veh2base = pd.read_csv(os.path.join(in_path, "vehicle_to_base.csv"))
+    # reduce to the ones that are in the reservation
+    station_df = load_stations(in_path)
+    station_df = station_df[station_df["in_reservation"]]
+
+    # reduce veh2base to the ones with suitable stations
+    # PROBLEM: now we want to work with all stations with in_reservation=True. So we also need vehicle IDs for all of
+    # them. So I think we need to start desigining scenarios already. It does not make sense to have a test case right now
 
     # to datetime
     veh2base["bizbeg"] = pd.to_datetime(veh2base["bizbeg"])
@@ -50,6 +63,11 @@ def carsharing_availability_one_day(in_path, date=RANDOM_DATE):
     return station_count
 
 
+def load_station_scenario(path):
+    # TODO: just load the scenario or do we need to do it in several steps, e.g. assign EVs or so
+    return pd.read_csv(path, index_col="station_no")
+
+
 def derive_decision_time(acts_gdf_mode):
     # rename distance column if necessary
     if "distance" not in acts_gdf_mode.columns:
@@ -69,7 +87,7 @@ def derive_decision_time(acts_gdf_mode):
         - 10 * 60
     )
     # drop geometry for easier processing
-    acts_gdf_mode.drop(["geom_origin", "geom_destination"], axis=1, inplace=True)
+    acts_gdf_mode.drop(["geom_origin", "geom_destination"], axis=1, inplace=True, errors="ignore")
     # drop the rows of activities that are repeated
     print("Number of activities", len(acts_gdf_mode))
     acts_gdf_mode = acts_gdf_mode[acts_gdf_mode["distance"] > 0]
@@ -230,6 +248,9 @@ def derive_reservations(acts_gdf_mode):
 
 def load_trips(in_path_sim_trips):
     acts_gdf = pd.read_csv(in_path_sim_trips).set_index("id")
+    if not "geom_origin" in acts_gdf.columns:
+        warnings.warn("No geometry columns. Loading pure dataframe")
+        return acts_gdf
     print("Loaded trips", len(acts_gdf))
     acts_gdf.dropna(subset=["geom_origin", "geom_destination"], inplace=True)
     acts_gdf["geom_origin"] = acts_gdf["geom_origin"].apply(wkt.loads)

@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-
+import numpy as np
 
 def simple_vehicle_station_scenario(in_path, out_path=os.path.join("csv", "station_scenario")):
     # Current rationale: maximum capacity of mobility: max no of cars that have been at a station at the same time
@@ -26,7 +26,6 @@ def simple_vehicle_station_scenario(in_path, out_path=os.path.join("csv", "stati
         return one_station[beg_before & end_after]
 
     def get_max_veh(one_station):
-        date_template = "20JJ-MM-02"
         nr_veh = []
         for date in all_dates:
             stations_in_date_range = in_date_range(one_station, date)
@@ -34,7 +33,7 @@ def simple_vehicle_station_scenario(in_path, out_path=os.path.join("csv", "stati
             nr_veh.append(len(stations_in_date_range))
         most_veh = np.argmax(nr_veh)
         veh_list = in_date_range(one_station, all_dates[most_veh])["vehicle_no"].unique()
-        return veh_list
+        return list(veh_list)
 
     all_dates = get_all_dates()
 

@@ -1,15 +1,11 @@
-from operator import index
 import numpy as np
 import geopandas as gpd
-from shapely.geometry import Point
-import pickle
 import os
 import time
 import pandas as pd
 from shapely import wkt
-import matplotlib.pyplot as plt
+from ast import literal_eval
 import warnings
-import scipy
 
 from v2g4carsharing.import_data.import_utils import to_datetime_bizend
 
@@ -65,7 +61,7 @@ def carsharing_availability_one_day(in_path, date=RANDOM_DATE):
 
 def load_station_scenario(path):
     # TODO: just load the scenario or do we need to do it in several steps, e.g. assign EVs or so
-    return pd.read_csv(path, index_col="station_no")
+    return pd.read_csv(path, index_col="station_no", converters={'vehicle_list': literal_eval})
 
 
 def derive_decision_time(acts_gdf_mode):
@@ -135,7 +131,7 @@ def assign_mode(acts_gdf_mode, per_station_veh_avail, mode_choice_function):
         if shared_start:
             shared_vehicle = shared_vehicle_id[person_id]
             final_veh_ids.append(shared_vehicle)  # current veh ID is the shared vehicle
-            final_modes.append("shared")
+            final_modes.append("Mode::CarsharingMobility")
             # check whether we are back at the start station --> give back the car
             if shared_start == row["closest_station_destination"]:
                 # give vehicle back to station
@@ -148,22 +144,22 @@ def assign_mode(acts_gdf_mode, per_station_veh_avail, mode_choice_function):
 
         # otherwise: decide whether to borrow the car
         if nr_avail < 1:
-            mode = "car"
+            mode = "Mode::Car"
         else:
             mode = mode_choice_function(row)
 
         # if shared, set vehicle as borrowed and remember the pick up station (for return)
-        if mode == "shared":
+        if mode == 'Mode::CarsharingMobility':
             veh_id_borrow = per_station_veh_avail[closest_station].pop()
             shared_vehicle_id[person_id] = veh_id_borrow
             shared_starting_station[person_id] = closest_station
             final_veh_ids.append(veh_id_borrow)
-            # print(person_id, "borrowed car at station", closest_station)
+            print(person_id, "borrowed car at station", closest_station)
 
         assert len(per_station_veh_avail[closest_station]) >= 0
 
         final_modes.append(mode)
-        if mode != "shared":
+        if mode != 'Mode::CarsharingMobility':
             final_veh_ids.append(-1)
     print("time for reservation generation:", time.time() - tic)
     acts_gdf_mode["mode"] = final_modes
@@ -193,8 +189,8 @@ def derive_reservations(acts_gdf_mode):
         # identify rows to merge
         cond0 = acts_gdf_mode["next_person_id"] == acts_gdf_mode["person_id"]
         cond1 = acts_gdf_mode["index_temp"] != acts_gdf_mode["next_id"]  # already merged
-        cond2 = acts_gdf_mode["mode"] == "shared"
-        cond3 = acts_gdf_mode["next_mode"] == "shared"
+        cond2 = acts_gdf_mode["mode"] == 'Mode::CarsharingMobility'
+        cond3 = acts_gdf_mode["next_mode"] == 'Mode::CarsharingMobility'
         cond4 = ~pd.isna(acts_gdf_mode["next_id"])
         # cond5 = shared_rides["activity_index"] == shared_rides["next_activity_index"] - 1
         # # we cannot trust activity index because the repeated locations were removed --> cond5 is unsuitable.
@@ -214,7 +210,7 @@ def derive_reservations(acts_gdf_mode):
         cond_old = cond.copy()
 
     # now after setting the index, reduce to shared
-    shared_rides = acts_gdf_mode[acts_gdf_mode["mode"] == "shared"]
+    shared_rides = acts_gdf_mode[acts_gdf_mode["mode"] == 'Mode::CarsharingMobility']
 
     # aggregate into car sharing bookings instead
     agg_dict = {

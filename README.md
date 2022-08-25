@@ -64,7 +64,8 @@ This uses the raw mobis data and the raw simulated population data (output of sy
 We then add more features to the trips, i.e. geographic features such as pt accessability, distance to stations, etc.
 Run:
 ```
-python scripts/featurize_trips.py
+python scripts/featurize_trips.py -i ../data/simulated_population/sim_2022
+python scripts/featurize_trips.py -i ../data/mobis
 ```
 
 #### Training a mode choice model
@@ -82,6 +83,12 @@ python scripts/train_mode_choice_mlp.py
 
 See [simple_choice_models](v2g4carsharing/mode_choice_model/simple_choice_models.py)
 
+#### Generate station scenario
+
+We need to make a scenario which car sharing stations exist and what vehicles are available at these stations. So far, a simple scenario can be generated with
+```
+python scripts/generate_station_scenario.py
+```
 
 #### Generate synthetic car sharing booking data
 

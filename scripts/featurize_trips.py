@@ -25,16 +25,18 @@ def compare_feature_distributions(mobis_feat_path, sim_feat_path):
             )
             if abs(z) > 1.96:
                 print("ATTENTION: significant z value")
+            r2 = lambda x: round(x, 2)
             feat_comp_table.append(
                 {
-                    "mobis_mean": np.mean(mobis_feat[col]),
-                    "mobis_std": np.std(mobis_feat[col]),
-                    "sim_mean": np.mean(sim_feat[col]),
-                    "sim_std": np.std(sim_feat[col]),
-                    "z value": z,
+                    "feat": col,
+                    "MOBIS (mean)": r2(np.mean(mobis_feat[col])),
+                    "Simulated population (mean)": r2(np.mean(sim_feat[col])),
+                    "MOBIS std": r2(np.std(mobis_feat[col])),
+                    "Simulated population std": r2(np.std(sim_feat[col])),
+                    "Z value (sim - mobis mean) / mobis std": r2(z),
                 }
             )
-        pd.DataFrame(feat_comp_table)
+        pd.DataFrame(feat_comp_table).to_csv(os.path.join("outputs", "feature_comparison.csv"))
 
 
 if __name__ == "__main__":
@@ -62,3 +64,6 @@ if __name__ == "__main__":
     feat_collector.add_all_features()
     feat_collector.save(remove_geom=(not args.keep_geom))
 
+    # compare_feature_distributions(
+    # "../data/mobis/trips_features.csv", "../data/simulated_population/sim_2022/trips_features.csv"
+    # )

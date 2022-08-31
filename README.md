@@ -64,7 +64,7 @@ This uses the raw mobis data and the raw simulated population data (output of sy
 We then add more features to the trips, i.e. geographic features such as pt accessability, distance to stations, etc.
 Run:
 ```
-python scripts/featurize_trips.py -i ../data/simulated_population/sim_2022
+python scripts/featurize_trips.py -i ../data/simulated_population/sim_2022 --keep_geom
 python scripts/featurize_trips.py -i ../data/mobis
 ```
 

@@ -64,6 +64,9 @@ if __name__ == "__main__":
     feat_collector.add_all_features()
     feat_collector.save(remove_geom=(not args.keep_geom))
 
-    # compare_feature_distributions(
-    # "../data/mobis/trips_features.csv", "../data/simulated_population/sim_2022/trips_features.csv"
-    # )
+    # if both have been created, compare them
+    mobis_path_out = os.path.join("..", "data", "mobis", "trips_features.csv")
+    sim_path_out = os.path.join("..", "data", "simulated_population", "sim_2022", "trips_features.csv")
+    if os.path.exists(mobis_path_out) and os.path.exists(sim_path_out):
+        print("Comparing features")
+        compare_feature_distributions(mobis_path_out, sim_path_out)

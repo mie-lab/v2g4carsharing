@@ -13,6 +13,19 @@ from v2g4carsharing.simulate.car_sharing_patterns import load_trips
 
 
 def compute_dist_to_station(trips, station):
+    # delete columns if they already exist
+    trips.drop(
+        [
+            "distance_to_station_origin",
+            "closest_station_origin",
+            "index_right",
+            "distance_to_station_destination",
+            "closest_station_destination",
+        ],
+        axis=1,
+        inplace=True,
+        errors="ignore",
+    )
     # get closest station to origin
     trips.set_geometry("geom_origin", inplace=True)
     trips = trips.sjoin_nearest(station[["geom"]], distance_col="distance_to_station_origin")

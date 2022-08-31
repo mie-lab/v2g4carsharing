@@ -2,6 +2,10 @@ import os
 import pandas as pd
 import numpy as np
 
+from v2g4carsharing.simulate.car_sharing_patterns import load_stations
+from v2g4carsharing.import_data.import_utils import write_geodataframe
+
+
 def simple_vehicle_station_scenario(in_path, out_path=os.path.join("csv", "station_scenario")):
     # Current rationale: maximum capacity of mobility: max no of cars that have been at a station at the same time
     # TODO: this should be moved into new file. it is only here for backup
@@ -39,7 +43,7 @@ def simple_vehicle_station_scenario(in_path, out_path=os.path.join("csv", "stati
 
     # load veh2base and station
     veh2base = pd.read_csv(os.path.join(in_path, "vehicle_to_base.csv"))
-    station_df = pd.read_csv(os.path.join(in_path, "station.csv")).set_index("station_no")
+    station_df = load_stations(in_path)
 
     # filter for stations that are in the reservations
     in_reservation = station_df[station_df["in_reservation"]]
@@ -49,5 +53,7 @@ def simple_vehicle_station_scenario(in_path, out_path=os.path.join("csv", "stati
     veh_per_station = veh2base.groupby("station_no").apply(get_max_veh)
     veh_per_station = pd.DataFrame(veh_per_station, columns=["vehicle_list"])
 
-    veh_per_station.to_csv(os.path.join(out_path, "same_stations.csv"))
-    return veh_per_station
+    # merge with geometry
+    veh_per_station = station_df[["geom"]].merge(veh_per_station, left_index=True, right_index=True, how="right")
+
+    write_geodataframe(veh_per_station, os.path.join(out_path, "same_stations.csv"))

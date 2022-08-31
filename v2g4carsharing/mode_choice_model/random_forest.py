@@ -2,6 +2,21 @@ import pickle
 import os
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import balanced_accuracy_score
+from v2g4carsharing.mode_choice_model.evaluate import plot_confusion_matrix
+
+
+def rf_tuning(X_train, X_test, y_train, y_test, max_depth=None, plot_confusion=False):
+    rf = RandomForestClassifier(max_depth=max_depth)
+    rf.fit(X_train, y_train)
+    y_pred = rf.predict(X_test)
+    acc = balanced_accuracy_score(y_test, y_pred)
+    car_sharing_pred = y_pred[y_test == "Mode::CarsharingMobility"]
+    car_sharing_acc = sum(car_sharing_pred == "Mode::CarsharingMobility") / len(car_sharing_pred)
+    print(f"Max depth {max_depth} bal accuracy {acc} car sharing sensitivity {car_sharing_acc}")
+    if plot_confusion:
+        plot_confusion_matrix(y_pred, y_test, traintest="TEST")
+    return car_sharing_acc
 
 
 class RandomForestWrapper:

@@ -2,45 +2,19 @@ import os
 import sys
 import pandas as pd
 import numpy as np
-from sklearn.metrics import accuracy_score, balanced_accuracy_score, ConfusionMatrixDisplay
-from sklearn.model_selection import cross_validate, train_test_split
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
 import torch
-import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
 from v2g4carsharing.mode_choice_model.mlp_baseline import ModeChoiceDataset, train_model, test_model, MLP
 from v2g4carsharing.mode_choice_model.prepare_train_data import prepare_data
-from v2g4carsharing.mode_choice_model.random_forest import RandomForestWrapper
+from v2g4carsharing.mode_choice_model.random_forest import RandomForestWrapper, rf_tuning
+from v2g4carsharing.mode_choice_model.evaluate import plot_confusion_matrix
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def fit_random_forest(trips_mobis, trips_sim=None, out_path=os.path.join("outputs", "mode_choice_model")):
-    def simple_rf_test(X_train, X_test, y_train, y_test, max_depth=None, plot_confusion=False):
-        rf = RandomForestClassifier(max_depth=max_depth)
-        rf.fit(X_train, y_train)
-        y_pred = rf.predict(X_test)
-        acc = balanced_accuracy_score(y_test, y_pred)
-        car_sharing_pred = y_pred[y_test == "Mode::CarsharingMobility"]
-        car_sharing_acc = sum(car_sharing_pred == "Mode::CarsharingMobility") / len(car_sharing_pred)
-        print(f"Max depth {max_depth} bal accuracy {acc} car sharing sensitivity {car_sharing_acc}")
-        if plot_confusion:
-            plot_confusion_matrix(y_pred, y_test, traintest="TEST")
-        return car_sharing_acc
-
-    def plot_confusion_matrix(pred, labels_max_str, traintest="TRAIN"):
-        print("----- ", traintest, "results")
-        print("Acc:", accuracy_score(pred, labels_max_str))
-        print("Balanced Acc:", balanced_accuracy_score(pred, labels_max_str))
-        for confusion_mode in [None, "true", "pred"]:
-            name = "" if confusion_mode is None else confusion_mode
-            fig, ax = plt.subplots(1, 1, figsize=(10, 10))
-            ConfusionMatrixDisplay.from_predictions(
-                labels_max_str, pred, normalize=confusion_mode, xticks_rotation="vertical", values_format="2.2f", ax=ax
-            )
-            plt.tight_layout()
-            plt.savefig(os.path.join(out_path, f"random_forest_{traintest}_confusion_{name}.png"))
 
     f = open(os.path.join(out_path, "stdout_random_forest.txt"), "w")
     sys.stdout = f
@@ -54,13 +28,13 @@ def fit_random_forest(trips_mobis, trips_sim=None, out_path=os.path.join("output
     # find best max depth
     best_acc = 0
     for max_depth in [20, 30, 50, None]:
-        acc = simple_rf_test(X_train, X_test, y_train, y_test, max_depth=max_depth)
+        acc = rf_tuning(X_train, X_test, y_train, y_test, max_depth=max_depth)
         # save best parameter
         if acc > best_acc:
             best_acc = acc
             final_max_depth = max_depth
     # report test data performance
-    simple_rf_test(X_train, X_test, y_train, y_test, max_depth=final_max_depth, plot_confusion=True)
+    rf_tuning(X_train, X_test, y_train, y_test, max_depth=final_max_depth, plot_confusion=True)
 
     # Fit on whole training data:
     rf_wrapper = RandomForestWrapper(max_depth=final_max_depth)
@@ -68,7 +42,7 @@ def fit_random_forest(trips_mobis, trips_sim=None, out_path=os.path.join("output
 
     # save train accuracy
     train_pred = rf_wrapper(features)
-    plot_confusion_matrix(train_pred, labels_max_str, traintest="TRAIN")
+    plot_confusion_matrix(train_pred, labels_max_str, traintest="TRAIN", out_path=out_path)
 
     # save model
     rf_wrapper.save()

@@ -202,7 +202,9 @@ class MobisTripPreprocessor:
         print("Loaded trips.")
 
     def add_survey_features(
-        self, survey_path, survey_features=["p_birthdate", "p_sex", "p_caraccess"],
+        self,
+        survey_path,
+        survey_features=["p_birthdate", "p_sex", "p_caraccess", "p_ptmobtool_ht", "p_ptmobtool_ga", "p_occup_employed"],
     ):
         print("Adding survey features...")
         car_sharing_users = self.trips["person_id"].unique()
@@ -222,6 +224,9 @@ class MobisTripPreprocessor:
         output_df["feat_age"] = 2022 - survey_car_sharing_users["p_birthdate"]
         output_df["feat_sex"] = survey_car_sharing_users["p_sex"].apply(lambda x: 0 if x == "male" else 1)
         output_df["feat_caraccess"] = survey_car_sharing_users["p_caraccess"].map(access_values)
+        output_df["feat_employed"] = ~survey_car_sharing_users["p_occup_employed"].isna()
+        output_df["feat_halbtax"] = ~survey_car_sharing_users["p_ptmobtool_ht"].isna()
+        output_df["feat_ga"] = survey_car_sharing_users["p_ptmobtool_ga"]
         # output_df["feat_oev_accessibility"] = survey_car_sharing_users["oev_accessibility"].copy()
         # TODO: possibly add more features, such as oev accessibility by home coordinates, or ga / halbtax (also
         # available in synpp)

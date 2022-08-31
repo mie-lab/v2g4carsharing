@@ -142,13 +142,24 @@ class SimTripProcessor:
             self.trips[new_time_var_name] = pd.to_datetime(self.trips[new_time_var_name])
             print("Successfully transformed time variable into date:", time_var)
 
-    def add_survey_features(self, survey_features=["feat_caraccess", "feat_sex", "feat_age"]):
+    def add_survey_features(
+        self, survey_features=["feat_caraccess", "feat_sex", "feat_age", "feat_ga", "feat_halbtax", "feat_employed"]
+    ):
         """Add user-related information to the trips"""
         # load activity data
         with open(os.path.join(self.path, "raw_synthesis_population_enriched.p",), "rb",) as infile:
             survey = pickle.load(infile).set_index("person_id")
         survey["feat_caraccess"] = survey["car_availability"] / 2
-        survey.rename(columns={"sex": "feat_sex", "age": "feat_age"}, inplace=True)
+        survey.rename(
+            columns={
+                "sex": "feat_sex",
+                "age": "feat_age",
+                "subscriptions_ga": "feat_ga",
+                "subscriptions_halbtax": "feat_halbtax",
+                "employed": "feat_employed"
+            },
+            inplace=True,
+        )
         self.trips = self.trips.merge(survey[survey_features], left_on="person_id", right_index=True, how="left")
 
     def save_trips(self):

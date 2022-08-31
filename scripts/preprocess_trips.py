@@ -5,7 +5,7 @@ from v2g4carsharing.trips_preparation.simulated_data_preprocessing import SimTri
 if __name__ == "__main__":
 
     # 1) MOBIS data
-    INP_PATH_MOBIS = "../../teaching/mobis_project/MOBIS_Covid_version_2_raubal"
+    INP_PATH_MOBIS = "../../teaching/2021_22/mobis_project/MOBIS_Covid_version_2_raubal"
     PATH = "../data/mobis/"
 
     os.makedirs(PATH, exist_ok=True)

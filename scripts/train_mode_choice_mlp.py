@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from v2g4carsharing.mode_choice_model.mlp_baseline import ModeChoiceDataset, train_model, test_model, MLP
 from v2g4carsharing.mode_choice_model.prepare_train_data import prepare_data
 from v2g4carsharing.mode_choice_model.random_forest import RandomForestWrapper, rf_tuning
-from v2g4carsharing.mode_choice_model.evaluate import plot_confusion_matrix
+from v2g4carsharing.mode_choice_model.evaluate import plot_confusion_matrix, mode_share_plot
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -54,12 +54,13 @@ def fit_random_forest(trips_mobis, trips_sim=None, out_path=os.path.join("output
         pred_sim_str = rf_wrapper.label_meanings[pred_sim]
         uni, counts = np.unique(pred_sim_str, return_counts=True)
         print({u: c for u, c in zip(uni, counts)})
-    # # Test prediction for single rows
-    # for i, row in trips_sim.iterrows():
-    #     out_test = rf_wrapper(row)
-    #     print(out_test)
-    #     if i > 10:
-    #         break
+        # # Test prediction for single rows
+        # for i, row in trips_sim.iterrows():
+        #     out_test = rf_wrapper(row)
+        #     print(out_test)
+        #     if i > 10:
+        #         break
+        mode_share_plot(labels_max_str, pred_sim_str)
     f.close()
 
 

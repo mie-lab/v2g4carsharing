@@ -1,5 +1,8 @@
 import os
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, ConfusionMatrixDisplay
 
 
@@ -17,3 +20,18 @@ def plot_confusion_matrix(
         )
         plt.tight_layout()
         plt.savefig(os.path.join(out_path, f"random_forest_{traintest}_confusion_{name}.png"))
+
+
+def mode_share_plot(labels_mobis, labels_sim, out_path=os.path.join("outputs", "mode_choice_model")):
+    def mode_share_dict(labels, name):
+        uni, counts = np.unique(labels, return_counts=True)
+        mobis_modeshare = {u: [(c / np.sum(counts))] for u, c in zip(uni, counts)}
+        df = pd.DataFrame(mobis_modeshare).swapaxes(1, 0).rename(columns={0: "Mode ratio"})
+        df["Type"] = name
+        df.index.name = "Mode"
+        return df.reset_index()
+
+    df_labels = pd.concat((mode_share_dict(labels_mobis, "MOBIS"), mode_share_dict(labels_sim, "Simulated")))
+    plt.figure(figsize=(10, 7))
+    sns.barplot(x="Mode", y="Mode ratio", hue="Type", data=df_labels)
+    plt.savefig(os.path.join(out_path, "mode_share_comparison.png"))

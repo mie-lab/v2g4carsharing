@@ -64,8 +64,11 @@ class SimTripProcessor:
 
     def transform_to_trips(self):
         """Transform activities into trips"""
+        # get the location ID of the previous row:
+        # Attention: location ID is always -1 for the home location of any person
+        self.acts["location_id_origin"] = self.acts["destination_id"].shift(1)
         # get the previous geometry of each row
-        self.acts["geom_origin"] = self.acts["geometry"].shift(1)  # TODO
+        self.acts["geom_origin"] = self.acts["geometry"].shift(1)
         # get distance that must be travelled to this activity
         self.acts["distance"] = self.acts.distance(self.acts["geom_origin"])
         # correct purpose
@@ -90,6 +93,7 @@ class SimTripProcessor:
                 "purpose": "purpose_destination",
                 "start_time": "start_time_sec_destination",
                 "end_time": "end_time_sec_destination",
+                "destination_id": "location_id_destination",
             }
         ).drop("duration", axis=1)
 
@@ -156,7 +160,7 @@ class SimTripProcessor:
                 "age": "feat_age",
                 "subscriptions_ga": "feat_ga",
                 "subscriptions_halbtax": "feat_halbtax",
-                "employed": "feat_employed"
+                "employed": "feat_employed",
             },
             inplace=True,
         )

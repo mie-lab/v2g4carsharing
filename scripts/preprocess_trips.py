@@ -5,7 +5,7 @@ from v2g4carsharing.trips_preparation.simulated_data_preprocessing import SimTri
 if __name__ == "__main__":
 
     # 1) MOBIS data
-    INP_PATH_MOBIS = "../../teaching/2021_22/mobis_project/MOBIS_Covid_version_2_raubal"
+    INP_PATH_MOBIS = "../data/mobis/raw_data"
     PATH = "../data/mobis/"
 
     os.makedirs(PATH, exist_ok=True)
@@ -25,6 +25,7 @@ if __name__ == "__main__":
     CACHE_PATH = "../external_repos/ch-zh-synpop/cache_2022/"
     OUT_PATH = "../data/simulated_population/sim_2022"
     SIM_DATE = "2020-01-20"
+    os.makedirs(OUT_PATH, exist_ok=True)
 
     processor = SimTripProcessor(CACHE_PATH, OUT_PATH)
     # transform subsequent activities into trips

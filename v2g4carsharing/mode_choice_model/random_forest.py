@@ -5,13 +5,14 @@ from sklearn.ensemble import RandomForestClassifier
 
 
 class RandomForestWrapper:
-    def __init__(self) -> None:
-        self.rf = RandomForestClassifier()
+    def __init__(self, max_depth=20) -> None:
+        self.rf = RandomForestClassifier(max_depth=max_depth)
 
-    def __call__(self, feature_row):
+    def __call__(self, feature_vec):
         if not hasattr(self, "feat_columns"):
             raise RuntimeError("Forest must first be fitted!")
-        feature_vec = np.array(feature_row[self.feat_columns]).reshape(1, -1)
+        if len(feature_vec.shape) < 2:
+            feature_vec = np.array(feature_vec[self.feat_columns]).reshape(1, -1)
         pred_label = self.rf.predict(feature_vec)
         pred_label_str = self.label_meanings[pred_label]
         return pred_label_str

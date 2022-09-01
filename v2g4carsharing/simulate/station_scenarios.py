@@ -37,6 +37,8 @@ def simple_vehicle_station_scenario(in_path, out_path=os.path.join("csv", "stati
             nr_veh.append(len(stations_in_date_range))
         most_veh = np.argmax(nr_veh)
         veh_list = in_date_range(one_station, all_dates[most_veh])["vehicle_no"].unique()
+        if len(veh_list) == 0:
+            return pd.NA
         return list(veh_list)
 
     all_dates = get_all_dates()
@@ -50,7 +52,7 @@ def simple_vehicle_station_scenario(in_path, out_path=os.path.join("csv", "stati
     veh2base = veh2base[veh2base["station_no"].isin(in_reservation.index)]
 
     # get maximum available vehicles per station
-    veh_per_station = veh2base.groupby("station_no").apply(get_max_veh)
+    veh_per_station = veh2base.groupby("station_no").apply(get_max_veh).dropna()
     veh_per_station = pd.DataFrame(veh_per_station, columns=["vehicle_list"])
 
     # merge with geometry

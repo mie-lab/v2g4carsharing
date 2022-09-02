@@ -1,6 +1,7 @@
 import pickle
 import os
 import numpy as np
+import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import balanced_accuracy_score
 from v2g4carsharing.mode_choice_model.evaluate import plot_confusion_matrix
@@ -26,10 +27,17 @@ class RandomForestWrapper:
     def __call__(self, feature_vec):
         if not hasattr(self, "feat_columns"):
             raise RuntimeError("Forest must first be fitted!")
+        # select only the relevant feature columns
+        feature_vec = feature_vec[self.feat_columns]
+        # expand dims in case it's only one row
         if len(feature_vec.shape) < 2:
-            feature_vec = np.array(feature_vec[self.feat_columns]).reshape(1, -1)
+            feature_vec = pd.DataFrame(feature_vec).T
+        # predict
         pred_label = self.rf.predict(feature_vec)
         pred_label_str = self.label_meanings[pred_label]
+        if len(pred_label_str) == 1:
+            # if it's only one row, we return only the String, not an array
+            return pred_label_str[0]
         return pred_label_str
 
     def fit(self, features, labels):

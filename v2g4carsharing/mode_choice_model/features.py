@@ -32,6 +32,7 @@ def compute_dist_to_station(trips, station):
     trips.rename(columns={"index_right": "closest_station_origin"}, inplace=True)
     # get closest station to destination
     trips.set_geometry("geom_destination", inplace=True)
+    trips.crs = "EPSG:2056"
     trips = trips.sjoin_nearest(station[["geom"]], distance_col="distance_to_station_destination")
     trips.rename(columns={"index_right": "closest_station_destination"}, inplace=True)
     return trips

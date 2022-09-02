@@ -34,4 +34,6 @@ def mode_share_plot(labels_mobis, labels_sim, out_path=os.path.join("outputs", "
     df_labels = pd.concat((mode_share_dict(labels_mobis, "MOBIS"), mode_share_dict(labels_sim, "Simulated")))
     plt.figure(figsize=(10, 7))
     sns.barplot(x="Mode", y="Mode ratio", hue="Type", data=df_labels)
+    plt.xticks(rotation=90)
+    plt.tight_layout()
     plt.savefig(os.path.join(out_path, "mode_share_comparison.png"))

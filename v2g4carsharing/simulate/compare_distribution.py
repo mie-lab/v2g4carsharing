@@ -43,7 +43,7 @@ def compare_hist_dist(res_real, res_sim, col_name, out_path=None):
         if col_name == "duration":
             plt.xlim(0, 24)
     if out_path is not None:
-        plt.savefig(os.path.join(out_path, col_name + "_dist.png"))
+        plt.savefig(os.path.join(out_path, "distribution_" + col_name + ".png"))
     else:
         plt.show()
     print("Wasserstein:", scipy.stats.wasserstein_distance(res_real[col_name], res_sim[col_name]))
@@ -100,7 +100,7 @@ def compare_station_dist(res_real, res_sim, out_path=None):
     plt.figure()
     plt.hist(stations_compare["z_score"], bins=30)
     if out_path is not None:
-        plt.savefig(os.path.join(out_path, "zscore_dist.png"))
+        plt.savefig(os.path.join(out_path, "distribution_station_zscore.png"))
     else:
         plt.show()
 
@@ -166,5 +166,4 @@ def get_real_daily(in_path):
     res_real["reservationfrom"] = (res_real["reservationfrom"] - res_real["start_date"]).dt.seconds
     res_real["reservationto"] = (res_real["reservationto"] - res_real["start_date"]).dt.seconds
     return res_real
-
 

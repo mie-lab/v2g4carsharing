@@ -9,8 +9,11 @@ from shapely import wkt
 import geopandas as gpd
 from sklearn.neighbors import KernelDensity
 
+from v2g4carsharing.simulate.evaluate_synthetic_population import *
+
 
 def configure(context):
+    context.config("scaling_year", default=c.BASE_SCALING_YEAR)
     context.config("input_downsampling")
     context.stage("data.statpop.scaled")
 
@@ -115,13 +118,15 @@ def fit_kmm(car_sharing_user_distance, scaled_population):
     return scaled_population
 
 
-def compute_sample_weights(scaled_population, car_sharing_data_path, swiss_boundaries_path=None, dist="beta"):
-
+def load_compute_distances(scaled_population, car_sharing_data_path, swiss_boundaries_path=None):
+    """Load user and station data, add closest station and distance to closest station to them"""
+    print("Reading users and station...")
     # read car sharing user data
     user_df = load_and_convert_crs(os.path.join(car_sharing_data_path, "user.csv"), "person_no")
     assert swiss_boundaries_path or ("in_switzerland" in user_df.columns), "Specify a path to Swiss boundaries!"
-    # read station data
+    # read station data and restrict to most active ones
     station_df = load_and_convert_crs(os.path.join(car_sharing_data_path, "station.csv"), "station_no")
+    station_df = station_df[station_df["in_reservation"]]
 
     # Group scaled population by home location (to reduce computational effort in the following)
     print("Compute distance for population")
@@ -131,7 +136,9 @@ def compute_sample_weights(scaled_population, car_sharing_data_path, swiss_bound
     )
     scaled_locations.crs = "EPSG:2056"
     # Compute nearest station distance for scaled population
-    scaled_locations = scaled_locations.sjoin_nearest(station_df[["geom"]], distance_col="nearest_station_distance")
+    scaled_locations = scaled_locations.sjoin_nearest(
+        station_df[["geom"]], distance_col="nearest_station_distance"
+    ).rename(columns={"index_right": "closest_station"})
     # Problem: Some stations are duplicates and therefore added multiple times. We can simply remove the duplicates
     scaled_locations.drop_duplicates(subset=["home_x", "home_y"], inplace=True)
 
@@ -146,58 +153,126 @@ def compute_sample_weights(scaled_population, car_sharing_data_path, swiss_bound
         user_df = user_df[user_df["in_switzerland"]]
     print("Number of users after removing outside switzerland:", len(user_df))
     # distance to nearest station
-    user_df = user_df.sjoin_nearest(station_df[["geom"]], distance_col="nearest_station_distance")
+    user_df = user_df.sjoin_nearest(station_df[["geom"]], distance_col="nearest_station_distance").rename(
+        columns={"index_right": "closest_station"}
+    )
 
     # merge with initial population
     scaled_population = scaled_population.merge(
-        scaled_locations[["home_x", "home_y", "nearest_station_distance"]],
+        scaled_locations[["home_x", "home_y", "nearest_station_distance", "closest_station"]],
         left_on=["home_x", "home_y"],
         right_on=["home_x", "home_y"],
         how="left",
     )
+    return scaled_population, user_df
 
-    # compute sample weights
-    print("Fit Beta distribution")
-    fit_func = fit_beta_distribution if dist == "beta" else fit_kde
-    scaled_population = fit_func(user_df["nearest_station_distance"].values, scaled_population)
 
-    # check with KS test whether our sample is good
-    print("Sample from population")
-    population_sample = scaled_population.sample(10000, replace=False, weights=scaled_population["sample_probs"])
-    ks_test_check(
-        user_df["nearest_station_distance"].values,
-        scaled_population["nearest_station_distance"].values,
-        population_sample["nearest_station_distance"].values,
-        plot_path=car_sharing_data_path,
+def save_categorical_dist(
+    feat_values,
+    col_name,
+    out_path=os.path.join("..", "data", "simulated_population", "prevalence_2019"),
+    out_name="population",
+):
+    """Save a csv with the distribution"""
+    uni, counts = np.unique(feat_values, return_counts=True)
+    # normalize
+    counts = counts / np.sum(counts)
+    df = pd.DataFrame(uni, columns=[col_name])
+    df["prob"] = counts
+    df.to_csv(os.path.join(out_path, f"prevalence_{out_name}_{col_name}.csv"), index=False)
+
+
+def sample_from_population(
+    scaled_population,
+    carsharing_users,
+    sampling_strategy="station_age_gender",
+    nr_samples=10000,
+    scaling_year=2019,
+    path_prevalence=os.path.join("..", "data", "simulated_population"),
+    out_path_distribution_comparison=None,
+):
+
+    # Version 1: Sample with beta distribution
+    if sampling_strategy == "beta":
+        fit_func = fit_beta_distribution if sampling_strategy == "beta" else fit_kde
+        scaled_population = fit_func(carsharing_users["nearest_station_distance"].values, scaled_population)
+        population_sample = scaled_population.sample(
+            nr_samples, replace=False, weights=scaled_population["sample_probs"]
+        )
+        return population_sample
+
+    # Version 2: Sampling according to age, gender and station market share
+
+    # align age and sex features
+    print("Aligning gender and agegroup variables...")
+    agegroup_mapping = {17: 1, 26: 2, 30: 3, 40: 4, 50: 5, 65: 6}
+    agegroup_mapping_keys = np.array(sorted(agegroup_mapping.keys()))
+    scaled_population["agegroup_int"] = scaled_population["age"].apply(
+        lambda x: np.where(agegroup_mapping_keys <= x)[0][-1] + 1 if x > 16 else 0
     )
+    carsharing_users["sex"] = carsharing_users["gender"].map({"m": 0, "w": 1, pd.NA: -1})
 
-    return scaled_population
+    # Path to prevalence in population
+    path_pop_prevalence = os.path.join(path_prevalence, f"prevalence_{scaling_year}")
+    # Save the population prevalence if it does not exist yet
+    if not os.path.exists(path_pop_prevalence):
+        os.makedirs(path_pop_prevalence)
+        save_categorical_dist(
+            scaled_population["agegroup_int"].values,
+            "agegroup_int",
+            out_name="population",
+            out_path=path_pop_prevalence,
+        )
+        save_categorical_dist(scaled_population["sex"], "sex", out_name="population", out_path=path_pop_prevalence)
+        save_categorical_dist(
+            scaled_population["closest_station"].dropna(),
+            "closest_station",
+            out_name="population",
+            out_path=path_pop_prevalence,
+        )
+    # # Saving the carsharing-user prevalence once is sufficent, uncomment only for recompute:
+    # save_categorical_dist(carsharing_users, "sex", out_name="real")
+    # save_categorical_dist(carsharing_users["agegroup_int"].dropna(), "agegroup_int", out_name="real")
+    # save_categorical_dist(carsharing_users["closest_station"].dropna(), "closest_station", out_name="real")
 
+    print("Compute sample weights...")
+    scaled_population["sample_probs"] = 1
+    for feat in ["sex", "agegroup_int", "closest_station"]:
+        # load prevalence in car sharing users
+        prob_real = pd.read_csv(os.path.join(path_prevalence, f"prevalence_real_{feat}.csv"))
+        # load prevalence in overall population
+        prob_population = pd.read_csv(os.path.join(path_pop_prevalence, f"prevalence_population_{feat}.csv"))
+        # merge both
+        merged = prob_real.merge(
+            prob_population, left_on=feat, right_on=feat, how="outer", suffixes=("_real", "_population")
+        )
+        merged["prob_population"].fillna(1, inplace=True)  # need to fill with 1 to avoid zero division
+        merged["prob_real"].fillna(0, inplace=True)
+        # divide prevalences to yield the sample weight
+        merged[f"sample_weight_{feat}"] = merged["prob_real"] / merged["prob_population"]
+        scaled_population = scaled_population.merge(
+            merged[[feat, f"sample_weight_{feat}"]], left_on=feat, right_on=feat, how="left"
+        )
+        # multiply the final sample weight
+        scaled_population["sample_probs"] = (
+            scaled_population["sample_probs"] * scaled_population[f"sample_weight_{feat}"]
+        )
+        print("Added sample weight of ", feat)
 
-def ks_test_check(car_sharing_user_distance, population_distance_prev, population_distance_sampled, plot_path=None):
-    # compute previous ks divergence
-    ks_result = scipy.stats.kstest(car_sharing_user_distance, population_distance_prev)
-    print("Distribution difference in KS test (raw population):", ks_result)
+    # sample population
+    print("Sample from population")
+    population_sample = scaled_population.sample(nr_samples, replace=False, weights=scaled_population["sample_probs"])
 
-    # compute new ks divergence after sampling
-    ks_result = scipy.stats.kstest(car_sharing_user_distance, population_distance_sampled)
-    print("Distribution difference in KS test (sampled):", ks_result)
-
-    if plot_path is not None:
-        plt.subplot(1, 3, 1)
-        plt.hist(population_distance_prev[population_distance_prev < 1000])
-        plt.title("Initial distribution")
-        plt.xlim(-50, 1000)
-        plt.subplot(1, 3, 2)
-        plt.hist(car_sharing_user_distance[car_sharing_user_distance < 1000])
-        plt.title("Target distribution")
-        plt.xlim(-50, 1000)
-        plt.subplot(1, 3, 3)
-        plt.hist(population_distance_sampled[population_distance_sampled < 1000])
-        plt.title("Sampled distribution")
-        plt.xlim(-50, 1000)
-        plt.tight_layout()
-        plt.savefig(plot_path)
+    # If desired, compare the distributions of the sampled population with the original ones etc
+    if out_path_distribution_comparison is not None:
+        # check differences between distribution of our sampled population and the car sharing users
+        compare_station_market_share(
+            population_sample, scaled_population, carsharing_users, out_path_distribution_comparison
+        )
+        compare_categorical_distribution(
+            population_sample, scaled_population, carsharing_users, out_path_distribution_comparison
+        )
+    return population_sample
 
 
 def execute(context):
@@ -205,19 +280,26 @@ def execute(context):
         import pickle
 
         probability = 0.01
+        # Load cached population
         cache_path = "../external_repos/ch-zh-synpop/cache"
-        population_filename = "data.statpop.scaled__014e06a497b942b1e80168c295cd152a.p"
+        population_filename = "data.statpop.scaled__8d620a20fb66c978e1e307c5d428a8e0.p"
         with open(os.path.join(cache_path, population_filename), "rb") as infile:
             scaled_population = pickle.load(infile)
-        # scaled_population = pd.read_csv(os.path.join(cache_path, "scaled_with_sample_weights.csv"))
+        # Paths for further input data
         car_sharing_data_path = "data"
-        swiss_boundaries_path = "~/MIE/general_data/swiss_boundaries/swissBOUNDARIES3D_1_3_TLM_LANDESGEBIET.shp"
+        swiss_boundaries_path = "../../general_data/swiss_boundaries/swissBOUNDARIES3D_1_3_TLM_LANDESGEBIET.shp"
+        out_path_distribution_comparison = "outputs/figures"
+        path_prevalence = "../data/simulated_population"
+        scaling_year = 2019
     else:
         # get from contect
+        scaling_year = context.config("scaling_year")
         scaled_population = context.stage("data.statpop.scaled")
         # If we do not want to downsample, set the value to 1.0 in config
         probability = context.config("input_downsampling")
         car_sharing_data_path = "../../v2g4carsharing/data"
+        out_path_distribution_comparison = "../../v2g4carsharing/outputs/figures"
+        path_prevalence = "../../data/simulated_population"
         swiss_boundaries_path = None
 
     if probability < 1.0:
@@ -241,18 +323,23 @@ def execute(context):
 
         # ######### VERSION 2: CAR SHARING STATIONS ###################
 
-        sampling_strategy = "beta"
+        sampling_strategy = "station_age_gender"  # "beta"
         nr_samples = int(probability * len(scaled_population))
 
-        # compute sampling probabilities
-        scaled_population = compute_sample_weights(
-            scaled_population, car_sharing_data_path, swiss_boundaries_path, dist=sampling_strategy
+        # Load the data: Car sharing users and the overall (simulated) population
+        scaled_population, car_sharing_users = load_compute_distances(
+            scaled_population, car_sharing_data_path, swiss_boundaries_path=swiss_boundaries_path
         )
 
-        # sample population
-        print("Sample from population")
-        population_sample = scaled_population.sample(
-            nr_samples, replace=False, weights=scaled_population["sample_probs"]
+        # Sample population
+        population_sample = sample_from_population(
+            scaled_population,
+            car_sharing_users,
+            nr_samples=nr_samples,
+            sampling_strategy=sampling_strategy,
+            scaling_year=scaling_year,
+            out_path_distribution_comparison=out_path_distribution_comparison,
+            path_prevalence=path_prevalence,
         )
 
         # Clean
@@ -266,7 +353,6 @@ def execute(context):
         population_sample["is_head"] = population_sample["person_id"].isin(max_age_idx["person_id"])
 
     return population_sample.drop("sample_probs", axis=1)
-
 
 
 if __name__ == "__main__":

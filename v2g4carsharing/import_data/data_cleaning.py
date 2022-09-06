@@ -146,16 +146,14 @@ def preprocess_v2b(source_path):
 
 
 def split_reservation(out_path):
-    data_booking = pd.read_csv(
-        os.path.join(out_path, "all_reservation.csv"),
-        index_col="reservation_no"
+    data_booking = pd.read_pickle(
+        os.path.join(out_path, "all_reservation.zip")
     )
     # 1) service reservations
     service_reservation = data_booking[
         data_booking["reservationtype"] != "Normal"]
-    service_reservation.to_csv(
-        os.path.join(out_path, "service_reservation.csv"),
-        index="reservation_no"
+    service_reservation.to_pickle(
+        os.path.join(out_path, "service_reservation.zip")
     )
     # reduce booking data to the rest
     data_booking = data_booking[data_booking["reservationtype"] == "Normal"]
@@ -168,9 +166,8 @@ def split_reservation(out_path):
         data_booking["reservationstate"] == "sofortige Rückgabe"
     ) | (data_booking["reservationstate"] == "annulliert")
     canceled_bookings = data_booking[cond_cancelled]
-    canceled_bookings.to_csv(
-        os.path.join(out_path, "cancelled_reservation.csv"),
-        index="reservation_no"
+    canceled_bookings.to_pickle(
+        os.path.join(out_path, "cancelled_reservation.zip")
     )
     # reduce to rest
     data_booking = data_booking[~cond_cancelled]
@@ -185,9 +182,8 @@ def split_reservation(out_path):
     cond_outlier = data_booking["reservationfrom"] < "2019"
     # data_booking["duration_hours"] > 168
     outlier_bookings = data_booking[cond_outlier]
-    outlier_bookings.to_csv(
-        os.path.join(out_path, "outlier_reservation.csv"),
-        index="reservation_no"
+    outlier_bookings.to_pickle(
+        os.path.join(out_path, "outlier_reservation.zip")
     )
     # reduce to rest
     data_booking = data_booking[~cond_outlier]
@@ -198,14 +194,12 @@ def split_reservation(out_path):
         "FreeFloating (Rückgabe an einem beliebigen Ort)"
     )
     free_floating = data_booking[cond_ff]
-    free_floating.to_csv(
-        os.path.join(out_path, "free_floating_reservation.csv"),
-        index="reservation_no"
+    free_floating.to_pickle(
+        os.path.join(out_path, "free_floating_reservation.zip")
     )
     # reduce to rest
     data_booking = data_booking[~cond_ff]
 
     # 5) save the leftover part
-    data_booking.to_csv(
-        os.path.join(out_path, "reservation.csv"), index="reservation_no"
-    )
+    data_booking.to_pickle(
+        os.path.join(out_path, "reservation.zip"))

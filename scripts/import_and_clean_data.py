@@ -46,26 +46,30 @@ if __name__ == "__main__":
             # Add the variable whether it's in the reservations
             new_names["geometry"] = "geom"
             # data_reservation = pd.read_csv("data/reservation.csv")
-            df["in_reservation"] = df.index.isin(data_reservation["start_station_no"].unique())
-            print("In reservations", sum(df["in_reservation"]))
+            # df["in_reservation"] = df.index.isin(data_reservation["start_station_no"].unique())
+            # print("In reservations", sum(df["in_reservation"]))
 
         df = df.reset_index().rename(columns=new_names).set_index(index_name.lower())
 
         # write
         if df_name in ["user", "station"]:
-            write_geodataframe(df, os.path.join(out_path, f"{df_name}.csv"))
+            try:
+                write_geodataframe(df, os.path.join(out_path, f"{df_name}.zip"))
+            except:
+                df = df.set_geometry('geom')
+                write_geodataframe(df, os.path.join(out_path, f"{df_name}.zip"))
         else:
-            df.to_csv(os.path.join(out_path, f"{df_name}.csv"), index=index_name.lower())
+            df.to_pickle(os.path.join(out_path, f"{df_name}.zip"))
         print("Written file")
 
     # split whole table of reservations into service reservation, cancelled etc
     split_reservation(out_path)
 
     # convert v2b into relocations
-    data_v2b = pd.read_csv(os.path.join(out_path, "vehicle_to_base.csv"), index_col="v2b_no")
+    data_v2b = pd.read_pickle(os.path.join(out_path, "vehicle_to_base.zip"))
     relocations = v2b_to_relocations(data_v2b)
     relocations.index.name = "relocation_no"
-    relocations.to_csv(os.path.join(out_path, "relocation.csv"), index="relocation_no")
+    relocations.to_pickle(os.path.join(out_path, "relocation.zip"))
 
     if postgis_json_path is not None:
         write_to_postgis(out_path, postgis_json_path)

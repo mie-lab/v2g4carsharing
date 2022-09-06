@@ -26,7 +26,7 @@ def write_geodataframe(gdf, out_path):
     geo_col_name = gdf.geometry.name
     df = pd.DataFrame(gdf, copy=True)
     df[geo_col_name] = gdf.geometry.apply(wkt.dumps)
-    df.to_csv(out_path, index=True)
+    df.to_pickle(out_path)
 
 
 def read_geodataframe(in_path, geom_col="geom"):

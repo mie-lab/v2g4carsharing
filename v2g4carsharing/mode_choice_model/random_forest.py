@@ -3,7 +3,9 @@ import os
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
+import xgboost as xgb
 from sklearn.metrics import balanced_accuracy_score
+from sklearn.linear_model import SGDClassifier
 from v2g4carsharing.mode_choice_model.evaluate import plot_confusion_matrix
 
 
@@ -22,7 +24,8 @@ def rf_tuning(X_train, X_test, y_train, y_test, max_depth=None, plot_confusion=F
 
 class RandomForestWrapper:
     def __init__(self, max_depth=20) -> None:
-        self.rf = RandomForestClassifier(max_depth=max_depth)
+        self.rf = xgb.XGBClassifier(max_depth=max_depth)
+        # self.rf = RandomForestClassifier(max_depth=max_depth)
 
     def __call__(self, feature_vec):
         if not hasattr(self, "feat_columns"):

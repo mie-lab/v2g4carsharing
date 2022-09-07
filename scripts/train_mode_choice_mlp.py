@@ -48,6 +48,16 @@ def fit_random_forest(trips_mobis, out_path=os.path.join("outputs", "mode_choice
     # save model
     rf_wrapper.save(save_name=model_save_name)
 
+    # # for debugging:
+    # trips_sim = pd.read_csv("../data/simulated_population/sim_2019/trips_features.csv")
+    # features_sim = np.array(trips_sim[rf_wrapper.feat_columns])
+    # pred_sim = rf_wrapper.rf.predict(features_sim)
+    # labels_sim = rf_wrapper.label_meanings[pred_sim]
+    # carsharing_share_mobis = (np.sum(labels_max_str == "Mode::CarsharingMobility")) / len(labels_max_str)
+    # carsharing_share_sim = (np.sum(labels_sim == "Mode::CarsharingMobility")) / len(labels_sim)
+    # print(carsharing_share_mobis, carsharing_share_sim, np.unique(labels_sim, return_counts=True))
+    # print("Ratio  of sim mode share vs mobis mode share (should be 1)", carsharing_share_sim / carsharing_share_mobis)
+
     f.close()
 
 

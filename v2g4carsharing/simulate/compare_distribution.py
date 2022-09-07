@@ -10,6 +10,13 @@ import scipy
 import seaborn as sns
 
 
+def compare_nr_reservations(res_real, res_sim):
+    res_per_day = res_real.reset_index().groupby("start_date").agg({"reservation_no": "count"})
+    res_no_mean, res_no_std = res_per_day["reservation_no"].mean(), res_per_day["reservation_no"].std()
+    print("nr simulated", len(res_sim), "nr real mean and std", res_no_mean, res_no_std)
+    print("z value of nr of reservations: ", (len(res_sim) - res_no_mean) / res_no_std)
+
+
 def compare_user_dist(res_real, res_sim):
     # same for user distribution
     uni_person_per_day = (

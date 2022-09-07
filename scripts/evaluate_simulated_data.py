@@ -1,6 +1,7 @@
 import os
 import argparse
 import pandas as pd
+import sys
 
 from v2g4carsharing.simulate.compare_distribution import *
 from v2g4carsharing.mode_choice_model.evaluate import mode_share_plot
@@ -32,10 +33,15 @@ if __name__ == "__main__":
 
     os.makedirs(out_path, exist_ok=True)
 
+    f = open(os.path.join(out_path, "evaluation.txt"), "w")
+    sys.stdout = f
+
     # real reservations for the whole time period
     res_real = get_real_daily(in_path_real)
     # simulated reservations
     res_sim = pd.read_csv(in_path_sim, index_col="reservation_no")
+
+    compare_nr_reservations(res_real, res_sim)
 
     # user activity
     compare_user_dist(res_real, res_sim)
@@ -63,8 +69,12 @@ if __name__ == "__main__":
     mobis_data = pd.read_csv(os.path.join(args.mobis_data_path, "trips_features.csv"))
     mobis_data = mobis_data[[col for col in mobis_data.columns if col in np.unique(labels_sim)]]
     labels_mobis = np.array(mobis_data.columns)[np.argmax(np.array(mobis_data), axis=1)]
+    carsharing_share_mobis = (np.sum(labels_mobis == "Mode::CarsharingMobility")) / len(labels_mobis)
+    carsharing_share_sim = (np.sum(labels_sim == "Mode::CarsharingMobility")) / len(labels_sim)
+    print("Ratio  of sim mode share vs mobis mode share (should be 1)", carsharing_share_sim / carsharing_share_mobis)
     mode_share_plot(labels_mobis, labels_sim, out_path=out_path)
 
+    f.close()
     # Further possible comparisons:
     # - distance driven by user
     # - borrowed duration by station / user

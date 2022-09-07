@@ -5,9 +5,9 @@ import numpy as np
 from v2g4carsharing.mode_choice_model.features import ModeChoiceFeatures
 
 
-def compare_feature_distributions(mobis_feat_path, sim_feat_path):
+def compare_feature_distributions(mobis_feat_path, sim_in_path):
     mobis_feat = pd.read_csv(mobis_feat_path)
-    sim_feat = pd.read_csv(sim_feat_path)
+    sim_feat = pd.read_csv(os.path.join(sim_in_path, "trips_features.csv"))
 
     feat_comp_table = []
     for col in mobis_feat.columns:
@@ -36,7 +36,7 @@ def compare_feature_distributions(mobis_feat_path, sim_feat_path):
                     "Z value (sim - mobis mean) / mobis std": r2(z),
                 }
             )
-        pd.DataFrame(feat_comp_table).to_csv(os.path.join("outputs", "feature_comparison.csv"))
+        pd.DataFrame(feat_comp_table).to_csv(os.path.join(sim_in_path, "feature_comparison.csv"))
 
 
 if __name__ == "__main__":
@@ -64,9 +64,8 @@ if __name__ == "__main__":
     feat_collector.add_all_features()
     feat_collector.save(remove_geom=(not args.keep_geom))
 
-    # if both have been created, compare them
-    mobis_path_out = os.path.join("..", "data", "mobis", "trips_features.csv")
-    sim_path_out = os.path.join("..", "data", "simulated_population", "sim_2022", "trips_features.csv")
-    if os.path.exists(mobis_path_out) and os.path.exists(sim_path_out):
+    # If we have created the simulated features, and the mobis features already exist, compare them
+    mobis_path = os.path.join("..", "data", "mobis", "trips_features.csv")
+    if os.path.exists(mobis_path) and "sim" in in_path:
         print("Comparing features")
-        compare_feature_distributions(mobis_path_out, sim_path_out)
+        compare_feature_distributions(mobis_path, in_path)

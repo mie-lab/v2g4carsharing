@@ -1,6 +1,7 @@
 import os
 import sys
 import pandas as pd
+import argparse
 import numpy as np
 from sklearn.model_selection import train_test_split
 import torch
@@ -14,7 +15,7 @@ from v2g4carsharing.mode_choice_model.evaluate import plot_confusion_matrix, mod
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def fit_random_forest(trips_mobis, trips_sim=None, out_path=os.path.join("outputs", "mode_choice_model")):
+def fit_random_forest(trips_mobis, out_path=os.path.join("outputs", "mode_choice_model"), model_save_name="rf_sim"):
 
     f = open(os.path.join(out_path, "stdout_random_forest.txt"), "w")
     sys.stdout = f
@@ -34,7 +35,7 @@ def fit_random_forest(trips_mobis, trips_sim=None, out_path=os.path.join("output
             best_acc = acc
             final_max_depth = max_depth
     # report test data performance
-    rf_tuning(X_train, X_test, y_train, y_test, max_depth=final_max_depth, plot_confusion=True)
+    rf_tuning(X_train, X_test, y_train, y_test, max_depth=final_max_depth, plot_confusion=True, out_path=out_path)
 
     # Fit on whole training data:
     rf_wrapper = RandomForestWrapper(max_depth=final_max_depth)
@@ -45,22 +46,8 @@ def fit_random_forest(trips_mobis, trips_sim=None, out_path=os.path.join("output
     plot_confusion_matrix(train_pred, labels_max_str, traintest="TRAIN", out_path=out_path)
 
     # save model
-    rf_wrapper.save()
+    rf_wrapper.save(save_name=model_save_name)
 
-    if trips_sim is not None:
-        # Testing --> print unique
-        features_sim = np.array(trips_sim[rf_wrapper.feat_columns])
-        pred_sim = rf_wrapper.rf.predict(features_sim)
-        pred_sim_str = rf_wrapper.label_meanings[pred_sim]
-        uni, counts = np.unique(pred_sim_str, return_counts=True)
-        print({u: c for u, c in zip(uni, counts)})
-        # # Test prediction for single rows
-        # for i, row in trips_sim.iterrows():
-        #     out_test = rf_wrapper(row)
-        #     print(out_test)
-        #     if i > 10:
-        #         break
-        mode_share_plot(labels_max_str, pred_sim_str)
     f.close()
 
 
@@ -89,10 +76,32 @@ def fit_mlp(trips_mobis):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-s", "--save_name", type=str, default="test_rf", help="name to save model",
+    )
+    parser.add_argument(
+        "-i",
+        "--in_path_mobis",
+        type=str,
+        default=os.path.join("..", "data", "mobis", "trips_features.csv"),
+        help="path to mobis feature dataset",
+    )
+    parser.add_argument(
+        "-o",
+        "--out_path",
+        type=str,
+        default=os.path.join("outputs", "mode_choice_model"),
+        help="path to save training results",
+    )
+    args = parser.parse_args()
+
+    # out path is a new directory with the model name
+    out_path = os.path.join(args.out_path, args.save_name)
+    os.makedirs(out_path, exist_ok=True)
 
     # load data
-    trips_mobis = pd.read_csv(os.path.join("..", "data", "mobis", "trips_features.csv"))
-    trips_sim = pd.read_csv(os.path.join("../data/mobis", "trips_features.csv"))
+    trips_mobis = pd.read_csv(args.in_path_mobis)
 
-    fit_random_forest(trips_mobis, trips_sim)
+    fit_random_forest(trips_mobis, out_path=out_path, model_save_name=args.save_name)
 

@@ -166,11 +166,14 @@ def assign_mode(acts_gdf_mode, station_scenario, mode_choice_function):
             # print("After setting new closest station:", closest_station, row["distance_to_station_origin"])
             # print()
             # mode = "Mode::Car"
-        # # Hard cutoff? --> if distance to car sharing station is disproportionally large
-        # if row["distance_to_station_origin"] > row["distance"] * .5:
-        #     mode = "Mode::Car"
-        # else:
+
         mode = mode_choice_function(row)
+        # Hard cutoff if distance to car sharing station is disproportionally large, or there is no free station
+        if mode == "Mode::CarsharingMobility" and (
+            row["distance_to_station_origin"] > row["distance"] * 0.5 or pd.isna(closest_station)
+        ):
+            print("Applying hard cutoff: using car instead of carsharing")
+            mode = "Mode::Car"
 
         # if shared, set vehicle as borrowed and remember the pick up station (for return)
         if mode == "Mode::CarsharingMobility":
@@ -180,8 +183,6 @@ def assign_mode(acts_gdf_mode, station_scenario, mode_choice_function):
             shared_starting_location[person_id] = row["location_id_origin"]
             final_veh_ids.append(veh_id_borrow)
             print(person_id, "borrowed car at station", closest_station)
-
-        assert len(per_station_veh_avail[closest_station]) >= 0
 
         final_modes.append(mode)
         if mode != "Mode::CarsharingMobility":

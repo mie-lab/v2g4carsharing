@@ -30,11 +30,16 @@ class RandomForestWrapper:
     def __call__(self, feature_vec):
         if not hasattr(self, "feat_columns"):
             raise RuntimeError("Forest must first be fitted!")
+        # # prev version
+        # feature_vec = feature_vec[self.feat_columns]
+        # if len(feature_vec.shape) < 2:
+        #     feature_vec = pd.DataFrame(feature_vec).T
+
         # select only the relevant feature columns
-        feature_vec = feature_vec[self.feat_columns]
+        feature_vec = np.array(feature_vec[self.feat_columns])
         # expand dims in case it's only one row
         if len(feature_vec.shape) < 2:
-            feature_vec = pd.DataFrame(feature_vec).T
+            feature_vec = feature_vec.reshape(1, -1)
         # predict
         pred_label = self.rf.predict(feature_vec)
         pred_label_str = self.label_meanings[pred_label]

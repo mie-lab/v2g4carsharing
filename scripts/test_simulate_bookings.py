@@ -46,6 +46,9 @@ if __name__ == "__main__":
     # sort
     acts_gdf.sort_values(["started_at_destination"], inplace=True)
 
+    # # debugging
+    # for i, row in acts_gdf.iterrows():
+    #     out = mode_choice_model(row)
     # apply model
     inp_rf = np.array(acts_gdf[mode_choice_model.feat_columns])
     pred = mode_choice_model.rf.predict(inp_rf)

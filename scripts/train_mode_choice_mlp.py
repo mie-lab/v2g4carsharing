@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from v2g4carsharing.mode_choice_model.mlp_baseline import ModeChoiceDataset, train_model, test_model, MLP
 from v2g4carsharing.mode_choice_model.prepare_train_data import prepare_data
 from v2g4carsharing.mode_choice_model.random_forest import RandomForestWrapper, rf_tuning
-from v2g4carsharing.mode_choice_model.evaluate import plot_confusion_matrix, mode_share_plot
+from v2g4carsharing.mode_choice_model.evaluate import plot_confusion_matrix, feature_importance_plot
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -21,7 +21,8 @@ def fit_random_forest(trips_mobis, out_path=os.path.join("outputs", "mode_choice
     sys.stdout = f
 
     # prepare data
-    features, labels = prepare_data(trips_mobis, return_normed=False)
+    features, labels = prepare_data(trips_mobis, return_normed=False, drop_columns=[])  # ["feat_caraccess"]
+    print("fitting on features:", features.columns)
 
     # Tuning and reporting test data performance
     labels_max_str = np.array(labels.columns)[np.argmax(np.array(labels), axis=1)]
@@ -44,6 +45,9 @@ def fit_random_forest(trips_mobis, out_path=os.path.join("outputs", "mode_choice
     # save train accuracy
     train_pred = rf_wrapper(features)
     plot_confusion_matrix(train_pred, labels_max_str, traintest="TRAIN", out_path=out_path)
+
+    # print most important features
+    feature_importance_plot(rf_wrapper.feat_columns, rf_wrapper.rf.feature_importances_, out_path=out_path)
 
     # save model
     rf_wrapper.save(save_name=model_save_name)

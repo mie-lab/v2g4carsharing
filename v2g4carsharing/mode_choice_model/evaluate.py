@@ -22,6 +22,16 @@ def plot_confusion_matrix(
         plt.savefig(os.path.join(out_path, f"random_forest_{traintest}_confusion_{name}.png"))
 
 
+def feature_importance_plot(features, feature_importances, out_path=os.path.join("outputs", "mode_choice_model")):
+    sorted_feats = features[np.argsort(feature_importances)]
+    sorted_importances = feature_importances[np.argsort(feature_importances)]
+    plt.figure(figsize=(10, 7))
+    plt.bar(sorted_feats, sorted_importances)
+    plt.xticks(rotation=90)
+    plt.tight_layout()
+    plt.savefig(os.path.join(out_path, "feature_importances.png"))
+
+
 def mode_share_plot(labels_mobis, labels_sim, out_path=os.path.join("outputs", "mode_choice_model")):
     def mode_share_dict(labels, name):
         uni, counts = np.unique(labels, return_counts=True)

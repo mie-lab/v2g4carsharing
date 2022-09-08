@@ -41,19 +41,13 @@ if __name__ == "__main__":
     # simulated reservations
     res_sim = pd.read_csv(in_path_sim, index_col="reservation_no")
 
-    compare_nr_reservations(res_real, res_sim)
-
-    # user activity
-    compare_user_dist(res_real, res_sim)
+    # histogram of number of reservations and unique users
+    compare_nr_reservations(res_real, res_sim, out_path=out_path)
+    compare_user_dist(res_real, res_sim, out_path=out_path)
 
     # duration, start and end distributions
-    res_real["duration"] = (res_real["reservationto"] - res_real["reservationfrom"]) / 60 / 60
-    compare_hist_dist(res_real, res_sim, "duration", out_path=out_path)
-    compare_hist_dist(res_real, res_sim, "reservationfrom", out_path=out_path)
-    compare_hist_dist(res_real, res_sim, "reservationto", out_path=out_path)
-
-    # driven distances
-    compare_hist_dist(res_real, res_sim, "drive_km", out_path=out_path)
+    for var in ["duration", "reservationfrom", "reservationto", "drive_km"]:
+        compare_hist_dist(res_real, res_sim, var, out_path=out_path)
 
     # station distribution for a single real day
     # compare_station_dist_one_day(res_sim, in_path_real, out_path)
@@ -75,6 +69,3 @@ if __name__ == "__main__":
     mode_share_plot(labels_mobis, labels_sim, out_path=out_path)
 
     f.close()
-    # Further possible comparisons:
-    # - distance driven by user
-    # - borrowed duration by station / user

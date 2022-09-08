@@ -10,14 +10,26 @@ import scipy
 import seaborn as sns
 
 
-def compare_nr_reservations(res_real, res_sim):
+def compare_nr_reservations(res_real, res_sim, out_path=None):
     res_per_day = res_real.reset_index().groupby("start_date").agg({"reservation_no": "count"})
     res_no_mean, res_no_std = res_per_day["reservation_no"].mean(), res_per_day["reservation_no"].std()
     print("nr simulated", len(res_sim), "nr real mean and std", res_no_mean, res_no_std)
-    print("z value of nr of reservations: ", (len(res_sim) - res_no_mean) / res_no_std)
+    z_value_res = (len(res_sim) - res_no_mean) / res_no_std
+    print("z value of nr of reservations: ", z_value_res)
+
+    # plot histogram and simulated value
+    plt.figure(figsize=(10, 4))
+    vals, _, fig = plt.hist(res_per_day["reservation_no"], label="res per day")
+    plt.plot([len(res_sim), len(res_sim)], [0, np.max(vals)], label="simulated day")
+    plt.legend()
+    plt.title("Number of reservations (z={:.2f}".format(z_value_res))
+    if out_path is not None:
+        plt.savefig(os.path.join(out_path, "nr_reservations.png"))
+    else:
+        plt.show()
 
 
-def compare_user_dist(res_real, res_sim):
+def compare_user_dist(res_real, res_sim, out_path=None):
     # same for user distribution
     uni_person_per_day = (
         res_real.reset_index().groupby("start_date").agg({"reservation_no": "count", "person_no": "nunique"})
@@ -28,7 +40,19 @@ def compare_user_dist(res_real, res_sim):
     # print("real", len(res_real["person_no"].unique()) / len(res_real))
     sim_uni_user_ratio = len(res_sim["person_no"].unique()) / len(res_sim)
     print("sim", sim_uni_user_ratio)
-    print("z value for user dist", (sim_uni_user_ratio - mean) / std)
+    z_value_user = (sim_uni_user_ratio - mean) / std
+    print("z value for user dist", z_value_user)
+
+    # plot histogram and simulated value
+    plt.figure(figsize=(10, 4))
+    vals, _, fig = plt.hist(uni_person_per_day["ratio_unique"], label="real data (per day)")
+    plt.plot([sim_uni_user_ratio, sim_uni_user_ratio], [0, np.max(vals)], label="simulated day")
+    plt.legend()
+    plt.title("Ratio of unique users (z={:.2f}".format(z_value_user))
+    if out_path is not None:
+        plt.savefig(os.path.join(out_path, "nr_unique_users.png"))
+    else:
+        plt.show()
 
 
 def compare_hist_dist(res_real, res_sim, col_name, out_path=None):
@@ -172,5 +196,7 @@ def get_real_daily(in_path):
     # change encoding of res_from and res_to to seconds
     res_real["reservationfrom"] = (res_real["reservationfrom"] - res_real["start_date"]).dt.seconds
     res_real["reservationto"] = (res_real["reservationto"] - res_real["start_date"]).dt.seconds
+    # compute duration
+    res_real["duration"] = (res_real["reservationto"] - res_real["reservationfrom"]) / 60 / 60
     return res_real
 

@@ -43,6 +43,13 @@ class ModeChoiceFeatures:
         self.path = path
         self.trips = load_trips(os.path.join(path, "trips_enriched.csv"))
 
+    def subsample(self, nr_users_desired=100000):
+        persons_sim = self.trips["person_id"].unique()
+        rand_inds = np.random.permutation(len(persons_sim))[:nr_users_desired]
+        persons_sampled = persons_sim[rand_inds]
+        self.trips = self.trips[self.trips["person_id"].isin(persons_sampled)]
+        print(f"After subsampling, there are {self.trips['person_id'].nunique()} unique persons in the simulated data")
+
     def add_purpose_features(
         self, col_name="purpose_destination", included_purposes=["home", "leisure", "work", "shopping", "education"]
     ):

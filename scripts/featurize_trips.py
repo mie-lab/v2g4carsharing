@@ -49,6 +49,7 @@ if __name__ == "__main__":
         default=os.path.join("..", "data", "simulated_population", "sim_2022"),
         help="path to preprocessed trips",
     )
+    parser.add_argument("-r", "--reduce_samples", type=int, default=0, help="subsample persons?")
     parser.add_argument(
         "-k", "--keep_geom", action="store_true", help="if flag set, keep the geometry column",
     )
@@ -61,6 +62,8 @@ if __name__ == "__main__":
     print("Removing geometry?", not args.keep_geom)
 
     feat_collector = ModeChoiceFeatures(in_path)
+    if args.reduce_samples > 0:
+        feat_collector.subsample(nr_users_desired=args.reduce_samples)
     feat_collector.add_all_features()
     feat_collector.save(remove_geom=(not args.keep_geom))
 

@@ -6,9 +6,9 @@ python scripts/featurize_trips.py -i "../data/mobis"
 python scripts/train_mode_choice_mlp.py -i "../data/mobis/trips_features.csv" -o "outputs/mode_choice_model" -s "test_model_name"
 
 # preprocess the simulated trips
-python scripts/preprocess_sim_trips.py -i "../external_repos/ch-zh-synpop/cache" -o "../data/simulated_population/sim_2019" -d "2019-07-17"
+python scripts/preprocess_sim_trips.py -i "../external_repos/ch-zh-synpop/cache" -o "../data/simulated_population/sim_2019" -d "2019-07-17" 
 # featurize and output the feature comparison csv
-python scripts/featurize_trips.py -i "../data/simulated_population/sim_2019" --keep_geom
+python scripts/featurize_trips.py -i "../data/simulated_population/sim_2019" --keep_geom  -r 100000
 
 # testing the model in simple non-sequential scenario
 python scripts/test_simulate_bookings.py -i "../data/simulated_population/sim_2019" -o "outputs/simulated_car_sharing/test_2019_xgb" -m "trained_models/xgb_model.p"

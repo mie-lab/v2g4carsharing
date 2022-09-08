@@ -48,7 +48,7 @@ def compare_user_dist(res_real, res_sim, out_path=None):
     vals, _, fig = plt.hist(uni_person_per_day["ratio_unique"], label="real data (per day)")
     plt.plot([sim_uni_user_ratio, sim_uni_user_ratio], [0, np.max(vals)], label="simulated day")
     plt.legend()
-    plt.title("Ratio of unique users (z={:.2f}".format(z_value_user))
+    plt.title("Ratio of unique users (z={:.2f})".format(z_value_user))
     if out_path is not None:
         plt.savefig(os.path.join(out_path, "nr_unique_users.png"))
     else:
@@ -70,6 +70,7 @@ def compare_hist_dist(res_real, res_sim, col_name, out_path=None):
         else:
             bins = np.arange(0, 85000, 5000)
         plt.hist(res[col_name], bins=bins)
+        plt.xlabel(col_name)
         plt.title(names[i])
         if col_name == "duration":
             plt.xlim(0, 24)

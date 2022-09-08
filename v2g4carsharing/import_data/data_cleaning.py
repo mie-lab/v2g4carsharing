@@ -103,6 +103,7 @@ def preprocess_station(source_path, path_for_duplicates=None):
         data_station, 
         geometry=gpd.points_from_xy(data_station["LON"],
         data_station["LAT"]), crs="EPSG:4326")
+    data_station.rename_geometry('geom', inplace=True)
     print("nr stations", len(data_station))
     if path_for_duplicates is not None:
         # read reservations and get bookings per station

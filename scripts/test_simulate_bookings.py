@@ -3,6 +3,7 @@ import os
 import pickle
 from v2g4carsharing.simulate.car_sharing_patterns import *
 from v2g4carsharing.mode_choice_model.evaluate import mode_share_plot
+from v2g4carsharing.mode_choice_model.irl_wrapper import IRLWrapper
 
 if __name__ == "__main__":
     # args
@@ -11,7 +12,7 @@ if __name__ == "__main__":
         "-i",
         "--in_path_sim_trips",
         type=str,
-        default=os.path.join("..", "data", "simulated_population", "sim_2022"),
+        default=os.path.join("..", "data", "simulated_population", "sim_2019"),
         help="path to simulated trips csv",
     )
     parser.add_argument(
@@ -28,6 +29,9 @@ if __name__ == "__main__":
         default=os.path.join("trained_models", "rf_test.p"),
         help="path to mode choice model",
     )
+    parser.add_argument(
+        "-t", "--model_type", type=str, default="rf", help="one of rf or irl",
+    )
     # path to use for postgis_json_path argument: "../../dblogin_mielab.json"
     args = parser.parse_args()
 
@@ -38,27 +42,35 @@ if __name__ == "__main__":
     # load activities and shared-cars availability
     acts_gdf = pd.read_csv(os.path.join(in_path_sim_trips, "trips_features.csv"))
 
-    # define mode choice model
-    # mode_choice_model = simple_mode_choice
-    with open(args.model_path, "rb") as infile:
-        mode_choice_model = pickle.load(infile)
-
     # sort
     acts_gdf.sort_values(["started_at_destination"], inplace=True)
+    acts_gdf = acts_gdf[acts_gdf["distance"] > 0]
 
-    # # debugging
-    # for i, row in acts_gdf.iterrows():
-    #     out = mode_choice_model(row)
-    # apply model
-    inp_rf = np.array(acts_gdf[mode_choice_model.feat_columns])
-    pred = mode_choice_model.rf.predict(inp_rf)
-    pred_str = np.array(mode_choice_model.label_meanings)[pred]
+    if args.model_type == "rf":
+        # define mode choice model
+        with open(args.model_path, "rb") as infile:
+            mode_choice_model = pickle.load(infile)
+        # # debugging
+        # for i, row in acts_gdf.iterrows():
+        #     out = mode_choice_model(row)
+        # apply model
+        inp_rf = np.array(acts_gdf[mode_choice_model.feat_columns])
+        pred = mode_choice_model.rf.predict(inp_rf)
+        mode_sim = np.array(mode_choice_model.label_meanings)[pred]
+    elif args.model_type == "irl":
+        mode_choice_model = IRLWrapper(model_path=args.model_path)
+        mode_sim = []
+        for i in range(len(acts_gdf)):
+            mode_sim.append(mode_choice_model(acts_gdf.iloc[i]))
+    else:
+        raise NotImplementedError("model type must be one of irl or rf")
+
     # add mode labels and make fake vehicle IDs
-    acts_gdf["mode"] = pred_str
+    acts_gdf["mode"] = mode_sim
     acts_gdf["vehicle_no"] = -1
     acts_gdf["mode_decision_time"] = acts_gdf["start_time_sec_destination"]
 
-    uni, counts = np.unique(pred_str, return_counts=True)
+    uni, counts = np.unique(mode_sim, return_counts=True)
     print({u: c for u, c in zip(uni, counts)})
 
     # Save trip modes

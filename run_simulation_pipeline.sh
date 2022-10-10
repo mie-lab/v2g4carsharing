@@ -11,8 +11,12 @@ python scripts/preprocess_sim_trips.py -i "../external_repos/ch-zh-synpop/cache"
 python scripts/featurize_trips.py -i "../data/simulated_population/sim_2019" --keep_geom  -r 100000
 
 # testing the model in simple non-sequential scenario
-python scripts/test_simulate_bookings.py -i "../data/simulated_population/sim_2019" -o "outputs/simulated_car_sharing/test_2019_xgb" -m "trained_models/xgb_model.p"
+python scripts/test_simulate_bookings.py -i "../data/simulated_population/sim_2019" -o "outputs/simulated_car_sharing/test_2019_xgb" -m "trained_models/xgb_model.p" -t "rf"
 python scripts/evaluate_simulated_data.py -i "outputs/simulated_car_sharing/test_2019_xgb"
+
+# testing for irl mode choice model
+python scripts/test_simulate_bookings.py -i "../data/simulated_population/sim_2019" -o "outputs/simulated_car_sharing/test_2019_irl" -t "irl" -m "../external_repos/guided-cost-learning/trained_models/best_model/model"
+python scripts/evaluate_simulated_data.py -i "outputs/simulated_car_sharing/test_2019_irl"
 
 # generate station scenario (so far only simple scenario, no arguments)
 python scripts/generate_station_scenario.py 

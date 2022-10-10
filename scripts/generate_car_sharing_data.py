@@ -4,6 +4,7 @@ import pickle
 import argparse
 import pandas as pd
 from v2g4carsharing.mode_choice_model.random_forest import RandomForestWrapper
+from v2g4carsharing.mode_choice_model.irl_wrapper import IRLWrapper
 from v2g4carsharing.mode_choice_model.features import compute_dist_to_station
 from v2g4carsharing.simulate.car_sharing_patterns import (
     load_trips,
@@ -46,6 +47,9 @@ if __name__ == "__main__":
         default=os.path.join("trained_models", "rf_test.p"),
         help="path to mode choice model",
     )
+    parser.add_argument(
+        "-t", "--model_type", type=str, default="rf", help="one of rf or irl",
+    )
     # path to use for postgis_json_path argument: "../../dblogin_mielab.json"
     args = parser.parse_args()
 
@@ -58,8 +62,13 @@ if __name__ == "__main__":
 
     # define mode choice model
     # mode_choice_model = simple_mode_choice
-    with open(args.model_path, "rb") as infile:
-        mode_choice_model = pickle.load(infile)
+    if args.model_type == "rf":
+        with open(args.model_path, "rb") as infile:
+            mode_choice_model = pickle.load(infile)
+    elif args.model_type == "irl":
+        mode_choice_model = IRLWrapper(model_path=args.model_path)
+    else:
+        raise NotImplementedError("model type must be one of irl or rf")
 
     station_scenario = load_station_scenario(args.station_scenario)
 

@@ -47,6 +47,9 @@ if __name__ == "__main__":
 
     # duration, start and end distributions
     for var in ["duration", "reservationfrom", "reservationto", "drive_km"]:
+        if "test" in out_path and var not in ["reservationfrom"]:
+            # start and end times do not make sense without
+            continue
         compare_hist_dist(res_real, res_sim, var, out_path=out_path)
 
     # station distribution for a single real day

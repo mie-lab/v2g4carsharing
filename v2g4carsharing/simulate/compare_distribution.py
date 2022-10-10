@@ -19,10 +19,11 @@ def compare_nr_reservations(res_real, res_sim, out_path=None):
 
     # plot histogram and simulated value
     plt.figure(figsize=(10, 4))
-    vals, _, fig = plt.hist(res_per_day["reservation_no"], label="res per day")
-    plt.plot([len(res_sim), len(res_sim)], [0, np.max(vals)], label="simulated day")
-    plt.legend()
-    plt.title("Number of reservations (z={:.2f}".format(z_value_res))
+    vals, _, fig = plt.hist(res_per_day["reservation_no"], label="Mobility dataset (per day)")
+    plt.plot([len(res_sim), len(res_sim)], [0, np.max(vals)], label="Simulated day", lw=3)
+    plt.legend(fontsize=18)
+    plt.title("Number of reservations (z={:.2f})".format(z_value_res), fontsize=18)
+    plt.tight_layout()
     if out_path is not None:
         plt.savefig(os.path.join(out_path, "nr_reservations.png"))
     else:
@@ -45,19 +46,29 @@ def compare_user_dist(res_real, res_sim, out_path=None):
 
     # plot histogram and simulated value
     plt.figure(figsize=(10, 4))
-    vals, _, fig = plt.hist(uni_person_per_day["ratio_unique"], label="real data (per day)")
-    plt.plot([sim_uni_user_ratio, sim_uni_user_ratio], [0, np.max(vals)], label="simulated day")
-    plt.legend()
-    plt.title("Ratio of unique users (z={:.2f})".format(z_value_user))
+    vals, _, fig = plt.hist(uni_person_per_day["ratio_unique"], label="Mobility dataset (per day)")
+    plt.plot([sim_uni_user_ratio, sim_uni_user_ratio], [0, np.max(vals)], label="Simulated day")
+    plt.legend(fontsize=15)
+    plt.title("Ratio of unique users (z={:.2f})".format(z_value_user), fontsize=15)
+    plt.tight_layout()
     if out_path is not None:
         plt.savefig(os.path.join(out_path, "nr_unique_users.png"))
     else:
         plt.show()
 
 
+name_mapping = {
+    "reservationfrom": "Reservation start time (h)",
+    "reservationto": "Reservation end time (h)",
+    "drive_km": "Distance (km)",
+    "duration": "Duration (h)",
+    "station": "Reservation count per station",
+}
+
+
 def compare_hist_dist(res_real, res_sim, col_name, out_path=None):
     print("Distribution of ", col_name)
-    names = ["real", "sim"]
+    names = ["Mobility dataset", "Simulated"]
     plt.figure(figsize=(10, 4))
     for i, res in enumerate([res_real, res_sim]):
         plt.subplot(1, 2, i + 1)
@@ -69,11 +80,14 @@ def compare_hist_dist(res_real, res_sim, col_name, out_path=None):
             bins = np.arange(0, 15, 1)
         else:
             bins = np.arange(0, 85000, 5000)
+            plt.xticks([i * 3600 * 2 for i in range(12)], np.arange(0, 24, 2))
         plt.hist(res[col_name], bins=bins)
-        plt.xlabel(col_name)
-        plt.title(names[i])
+        plt.xticks(fontsize=20)
+        plt.xlabel(name_mapping.get(col_name, col_name), fontsize=20)
+        plt.title(names[i], fontsize=20)
         if col_name == "duration":
             plt.xlim(0, 24)
+    plt.tight_layout()
     if out_path is not None:
         plt.savefig(os.path.join(out_path, "distribution_" + col_name + ".png"))
     else:
@@ -130,7 +144,10 @@ def compare_station_dist(res_real, res_sim, out_path=None):
 
     # plot histogram
     plt.figure()
-    plt.hist(stations_compare["z_score"], bins=30)
+    plt.hist(stations_compare["z_score"], bins=30, label="Station-wise\nz-score distribution")
+    plt.xticks(fontsize=18)
+    plt.legend(fontsize=18)
+    plt.tight_layout()
     if out_path is not None:
         plt.savefig(os.path.join(out_path, "distribution_station_zscore.png"))
     else:

@@ -34,7 +34,7 @@ if __name__ == "__main__":
         help="path to save output",
     )
     parser.add_argument(
-        "-t",
+        "-s",
         "--station_scenario",
         type=str,
         default=os.path.join("csv", "station_scenario", "same_stations.csv"),

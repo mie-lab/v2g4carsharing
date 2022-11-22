@@ -21,5 +21,9 @@ python scripts/evaluate_simulated_data.py -i "outputs/simulated_car_sharing/test
 # generate station scenario (so far only simple scenario, no arguments)
 python scripts/generate_station_scenario.py 
 # generate realistic booking data
-python scripts/generate_car_sharing_data.py -i "../data/simulated_population/sim_2019" -o "outputs/simulated_car_sharing/xgb_model_sim" -m "trained_models/xgb_model.p"
-python scripts/evaluate_simulated_data.py -i "outputs/simulated_car_sharing/xgb_model_sim"
+python scripts/generate_car_sharing_data.py -i "../data/simulated_population/sim_2019" -o "outputs/simulated_car_sharing/xgb_2019_sim" -m "trained_models/xgb_model.p"
+python scripts/evaluate_simulated_data.py -i "outputs/simulated_car_sharing/xgb_2019_sim"
+
+# generate realistic booking data for irl
+python scripts/generate_car_sharing_data.py -i "../data/simulated_population/sim_2019" -o "outputs/simulated_car_sharing/irl_2019_sim" -t "irl" -m "../external_repos/guided-cost-learning/trained_models/best_model/model"
+python scripts/evaluate_simulated_data.py -i "outputs/simulated_car_sharing/irl_2019_sim"

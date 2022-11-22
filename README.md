@@ -97,16 +97,20 @@ The trained mode choice model (or a simple baseline model) can now be used to ge
 Run:
 
 ```
-python generate_car_sharing_data.py [-h] [-i IN_PATH_CAR_SHARING] [-o OUT_PATH] [-s IN_PATH_SIM_TRIPS]
+python generate_car_sharing_data.py [-h] [-i IN_PATH_SIM_TRIPS] [-o OUT_PATH] [-s STATION_SCENARIO] [-m MODEL_PATH] [-t MODEL_TYPE]
 
 optional arguments:
   -h, --help            show this help message and exit
-  -i IN_PATH_CAR_SHARING, --in_path_car_sharing IN_PATH_CAR_SHARING
-                        path to Mobility car sharing data
+  -i IN_PATH_SIM_TRIPS, --in_path_sim_trips IN_PATH_SIM_TRIPS
+                        path to simulated trips csv
   -o OUT_PATH, --out_path OUT_PATH
                         path to save output
-  -s IN_PATH_SIM_TRIPS, --in_path_sim_trips IN_PATH_SIM_TRIPS
-                        path to simulated trips csv
+  -s STATION_SCENARIO, --station_scenario STATION_SCENARIO
+                        path to station_scenario
+  -m MODEL_PATH, --model_path MODEL_PATH
+                        path to mode choice model
+  -t MODEL_TYPE, --model_type MODEL_TYPE
+                        one of rf or irl
 ```
 
 #### Evaluate the generation by comparing the distributions of simulated and real data
@@ -115,7 +119,7 @@ We can use the generated car sharing data and compare it to the real data from M
 
 Run:
 ```
-python evaluate_simulated_data.py [-h] [-i IN_PATH_SIM] [-d REAL_DATA_PATH] [-o OUT_PATH]
+python evaluate_simulated_data.py [-h] [-i IN_PATH_SIM] [-d REAL_DATA_PATH] [-m MOBIS_DATA_PATH]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -123,6 +127,6 @@ optional arguments:
                         path to simulated data
   -d REAL_DATA_PATH, --real_data_path REAL_DATA_PATH
                         path to Mobility car sharing data
-  -o OUT_PATH, --out_path OUT_PATH
-                        path to save output figures
+  -m MOBIS_DATA_PATH, --mobis_data_path MOBIS_DATA_PATH
+                        path to MOBIS data
 ```

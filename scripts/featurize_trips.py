@@ -11,7 +11,7 @@ def compare_feature_distributions(mobis_feat_path, sim_in_path):
 
     feat_comp_table = []
     for col in mobis_feat.columns:
-        if "feat" in col and col in sim_feat.columns:
+        if "feat" in col and col in sim_feat.columns and "Mode::" not in col:
             z = (np.mean(sim_feat[col]) - np.mean(mobis_feat[col])) / np.std(mobis_feat[col])
             print()
             print(col)

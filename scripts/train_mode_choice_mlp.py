@@ -21,7 +21,8 @@ def fit_random_forest(trips_mobis, out_path=os.path.join("outputs", "mode_choice
     sys.stdout = f
 
     # prepare data
-    features, labels = prepare_data(trips_mobis, return_normed=False, drop_columns=[])  # ["feat_caraccess"]
+    drop_columns = [col for col in trips_mobis.columns if col.startswith("feat_prev_Mode")]  # ["feat_caraccess"]
+    features, labels = prepare_data(trips_mobis, return_normed=False, drop_columns=drop_columns)
     print("fitting on features:", features.columns)
 
     # Tuning and reporting test data performance

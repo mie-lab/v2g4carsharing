@@ -1,17 +1,15 @@
 import pandas as pd
 
 
-def prepare_data(trips, min_number_trips=500, return_normed=True, drop_columns=[]):
+def prepare_data(trips, min_number_trips=200, return_normed=True, drop_columns=[]):
     # drop geometry if it exists
     dataset = trips.drop(["geom", "geom_origin", "geom_destination"] + drop_columns, axis=1, errors="ignore")
     print("Dataset raw", len(dataset))
-    # only include frequently used modes
+    # only include frequently used modes (now it usually uses all because we preselect modes earlier!)
     nr_trips_with_mode = trips[[col for col in trips.columns if col.startswith("Mode")]].sum()
     included_modes = list(nr_trips_with_mode[nr_trips_with_mode > min_number_trips].index.tolist())
     print("included_modes", included_modes)
     # TODO: group into public transport, slow transport, car, shared car
-    dataset = dataset[dataset[included_modes].sum(axis=1) > 0]
-    print("after removing other modes:", len(dataset))
 
     # only get feature and label columns
     feat_cols = [col for col in dataset.columns if col.startswith("feat")]

@@ -42,6 +42,30 @@ class ModeChoiceFeatures:
     def __init__(self, path="../data/mobis"):
         self.path = path
         self.trips = load_trips(os.path.join(path, "trips_enriched.csv"))
+        # check if labels are available, if yes, preprocess (restrict dataset to relevant modes)
+        mode_columns = [col for col in self.trips.columns if col.startswith("Mode::")]
+        self.mode_avail = len(mode_columns) > 0
+        self.included_modes = [
+            "Mode::Bicycle",
+            "Mode::Bus",
+            "Mode::Car",
+            "Mode::CarsharingMobility",
+            "Mode::Ebicycle",
+            "Mode::LightRail",
+            "Mode::RegionalTrain",
+            "Mode::Train",
+            "Mode::Tram",
+            "Mode::Walk",
+        ]
+        # reduce to included modes
+        if self.mode_avail:
+            # reduce to included modes
+            print("included_modes", self.included_modes, "size of dataset before", self.trips.shape)
+            remove_modes = [
+                col for col in self.trips.columns if col.startswith("Mode::") and col not in self.included_modes
+            ]
+            self.trips = (self.trips[self.trips[self.included_modes].sum(axis=1) > 0]).drop(remove_modes, axis=1)
+            print("after removing other modes:", self.trips.shape)
 
     def subsample(self, nr_users_desired=100000):
         persons_sim = self.trips["person_id"].unique()
@@ -73,6 +97,21 @@ class ModeChoiceFeatures:
         self.trips = self.trips.drop(["index_right"], axis=1).rename(
             columns={"Klasse": "feat_pt_accessibility" + origin_or_destination}
         )
+
+    def add_prev_mode_feature(self):
+        """Feature: previous mode"""
+        if self.mode_avail:
+            self.trips = self.trips.sort_values(["person_id", "started_at_origin"])
+            # add prev mode feature
+            self.trips["prev_person"] = self.trips["person_id"].shift(1)
+            person_switch = self.trips["prev_person"] != self.trips["person_id"]
+            for mode_col in self.included_modes:
+                self.trips["feat_prev_" + mode_col] = self.trips[mode_col].shift(1)
+                self.trips.loc[person_switch, "feat_prev_" + mode_col] = 0
+            self.trips.drop(["prev_person"], axis=1, inplace=True)
+        else:
+            for mode_col in self.included_modes:
+                self.trips["feat_prev_" + mode_col] = 0
 
     def add_weather(self):
         def get_daily_weather(row):
@@ -127,6 +166,12 @@ class ModeChoiceFeatures:
     def add_all_features(self):
         tic = time.time()
         self.add_distance_feature()
+        before_distance_0_removal = len(self.trips)
+        self.trips = self.trips[self.trips["feat_distance"] > 0]
+        print("Removed distance-0-trips (in %):", 1 - len(self.trips) / before_distance_0_removal)
+        print(time.time() - tic, "\nAdd prev mode feature:")
+        tic = time.time()
+        self.add_prev_mode_feature()
         print(time.time() - tic, "\nAdd purpose:")
         tic = time.time()
         self.add_purpose_features("purpose_destination")
@@ -151,15 +196,4 @@ class ModeChoiceFeatures:
         else:
             out_trips = self.trips
         out_trips.to_csv(os.path.join(self.path, "trips_features.csv"))
-
-    # -----------------------
-
-    # def add_prev_mode_feature(self): # TODO
-    #     """Feature: previous mode"""
-    #     dataset = dataset.sort_values(["participant_id", "trip_id"])
-    #     # add prev mode feature
-    #     dataset["prev_mode"] = dataset["mode"].shift(1)
-    #     one_hot_prev_mode = pd.get_dummies(dataset["prev_mode"], prefix="prev_mode")
-    #     dataset = dataset.merge(one_hot_prev_mode, left_index=True, right_index=True)
-    #     return dataset
 

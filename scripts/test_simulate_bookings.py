@@ -58,10 +58,16 @@ if __name__ == "__main__":
         pred = mode_choice_model.rf.predict(inp_rf)
         mode_sim = np.array(mode_choice_model.label_meanings)[pred]
     elif args.model_type == "irl":
+        acts_gdf["feat_prev_Mode::Car"] = 1  # for the prevmode feature
         mode_choice_model = IRLWrapper(model_path=args.model_path)
-        mode_sim = []
-        for i in range(len(acts_gdf)):
-            mode_sim.append(mode_choice_model(acts_gdf.iloc[i]))
+        # fast version for testing: pass all at once in an array
+        feature_vec = np.array(acts_gdf[mode_choice_model.feat_columns]).astype(float)
+        feature_vec = (feature_vec - np.array(mode_choice_model.feat_mean)) / np.array(mode_choice_model.feat_std)
+        action_probs = mode_choice_model.policy.predict_probs(feature_vec)
+        # note to my future self: must use random.choice instead of argmax (greedy aproach)! Mainly because of entropy
+        mode_sim = [
+            np.random.choice(mode_choice_model.included_modes, p=action_probs[i]) for i in range(len(action_probs))
+        ]
     else:
         raise NotImplementedError("model type must be one of irl or rf")
 

@@ -115,7 +115,7 @@ def assign_mode(acts_gdf_mode, station_scenario, mode_choice_function):
     # keep track in a dictionary how many vehicles are available at each station
     per_station_veh_avail = station_scenario["vehicle_list"].to_dict()
     # keep track for each person where their shared trips started (station no and location ID)
-    shared_starting_station, shared_starting_location = {}, {}
+    shared_starting_station, shared_starting_location, prev_mode = {}, {}, {}
     # keep track of the vehicle ID of the currently borrowed car
     shared_vehicle_id = {}
 
@@ -167,6 +167,14 @@ def assign_mode(acts_gdf_mode, station_scenario, mode_choice_function):
             # print()
             # mode = "Mode::Car"
 
+        # set prev mode feature dependent on previous decisions
+        prev_mode_of_person = prev_mode.get(person_id, "nomode")
+        if prev_mode_of_person != "nomode":
+            assert "feat_prev_" + prev_mode_of_person in row.index
+            row["feat_prev_" + prev_mode_of_person] = 1
+        else:
+            row["feat_prev_Mode::Car"] = 1  # by default, the prev mode is a car
+
         mode = mode_choice_function(row)
         # Hard cutoff if distance to car sharing station is disproportionally large, or there is no free station
         if mode == "Mode::CarsharingMobility" and (
@@ -185,6 +193,7 @@ def assign_mode(acts_gdf_mode, station_scenario, mode_choice_function):
             print(person_id, "borrowed car at station", closest_station)
 
         final_modes.append(mode)
+        prev_mode[person_id] = mode
         if mode != "Mode::CarsharingMobility":
             final_veh_ids.append(-1)
         if len(final_modes) % 1000 == 0:

@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 import time
+import json
 import trackintel as ti
 import geopandas as gpd
 from shapely import wkt
@@ -45,18 +46,8 @@ class ModeChoiceFeatures:
         # check if labels are available, if yes, preprocess (restrict dataset to relevant modes)
         mode_columns = [col for col in self.trips.columns if col.startswith("Mode::")]
         self.mode_avail = len(mode_columns) > 0
-        self.included_modes = [
-            "Mode::Bicycle",
-            "Mode::Bus",
-            "Mode::Car",
-            "Mode::CarsharingMobility",
-            "Mode::Ebicycle",
-            "Mode::LightRail",
-            "Mode::RegionalTrain",
-            "Mode::Train",
-            "Mode::Tram",
-            "Mode::Walk",
-        ]
+        with open("config.json", "r") as infile:
+            self.included_modes = json.load(infile)["included_modes"]
         # reduce to included modes
         if self.mode_avail:
             # reduce to included modes

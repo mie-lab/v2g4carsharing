@@ -1,5 +1,6 @@
 import pickle
 import os
+import json
 import numpy as np
 import pandas as pd
 
@@ -11,27 +12,27 @@ import torch.nn.functional as F
 class IRLWrapper:
     def __init__(self, model_path="../external_repos/guided-cost-learning/trained_models/best_model/model"):
 
+        data_path = "prevmode" if "prevmode" in model_path else "noprevmode"
         with open(
-            os.path.join("..", "external_repos", "guided-cost-learning", "expert_samples", "mobis_train.pkl"), "rb"
+            os.path.join(
+                "..", "external_repos", "guided-cost-learning", "expert_samples", data_path, "mobis_train.pkl",
+            ),
+            "rb",
         ) as infile:
             (_, self.feat_mean, self.feat_std) = pickle.load(infile)
 
-        self.included_modes = np.array(
-            [
-                "Mode::Bicycle",
-                "Mode::Bus",
-                "Mode::Car",
-                "Mode::CarsharingMobility",
-                "Mode::LightRail",
-                "Mode::RegionalTrain",
-                "Mode::Train",
-                "Mode::Tram",
-                "Mode::Walk",
-            ]
-        )
+        with open("config.json", "r") as infile:
+            self.included_modes = np.array(json.load(infile)["included_modes"])
+
         f = open(os.path.join("..", "data", "mobis", "trips_features.csv"), "r")
         data_columns = f.readlines(1)[0][:-1].split(",")
+        prev_mode_cols = [col for col in data_columns if col.startswith("feat_prev_")]
         self.feat_columns = [col for col in data_columns if col.startswith("feat")]
+        if "prevmode" not in model_path:
+            for x in prev_mode_cols:
+                self.feat_columns.remove(x)
+        self.feat_mean = self.feat_mean[self.feat_columns]
+        self.feat_std = self.feat_std[self.feat_columns]
 
         self.policy = PG(len(self.feat_columns), len(self.included_modes))
         self.policy.load_model(os.path.join(model_path))
@@ -142,6 +143,8 @@ if __name__ == "__main__":
 
     act_real = np.argmax(np.array(mobis_data[irl.included_modes]), axis=1)
     act_real = np.array(irl.included_modes)[act_real]
+
+    # mobis_data["feat_caraccess"] = 1 # for testing the influence of the caraccess feature
 
     mode_sim = []
     for i in range(len(mobis_data)):

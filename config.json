@@ -1,0 +1,13 @@
+{
+    "included_modes": [
+        "Mode::Bicycle",
+        "Mode::Bus",
+        "Mode::Car",
+        "Mode::CarsharingMobility",
+        "Mode::LightRail",
+        "Mode::RegionalTrain",
+        "Mode::Train",
+        "Mode::Tram",
+        "Mode::Walk"
+    ]
+}

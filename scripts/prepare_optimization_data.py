@@ -1,6 +1,7 @@
 import os
 import argparse
 import warnings
+from datetime import timedelta
 
 warnings.filterwarnings(action="ignore")
 
@@ -31,7 +32,11 @@ if __name__ == "__main__":
     time_granularity = args.time_granularity  # in reference to one hour, e.g. 0.5 = half an h
     sim_ev_mode = args.scenario
 
-    overall_slots = ts_to_index(FINAL_DATE, time_granularity=time_granularity) + 1
+    if args.simulate:
+        # just simulate one day
+        overall_slots = ts_to_index(BASE_DATE + timedelta(days=2), time_granularity=time_granularity) + 1
+    else:
+        overall_slots = ts_to_index(FINAL_DATE, time_granularity=time_granularity) + 1
     os.makedirs(out_path, exist_ok=True)
 
     # Load data

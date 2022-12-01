@@ -27,7 +27,7 @@ def fit_random_forest(trips_mobis, out_path=os.path.join("outputs", "mode_choice
 
     # Tuning and reporting test data performance
     labels_max_str = np.array(labels.columns)[np.argmax(np.array(labels), axis=1)]
-    X_train, X_test, y_train, y_test = train_test_split(features, labels_max_str)
+    X_train, X_test, y_train, y_test = train_test_split(features, labels_max_str, random_state = 1)
     # find best max depth
     best_acc = 0
     for max_depth in [20, 30, 50, None]:

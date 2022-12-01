@@ -45,6 +45,7 @@ if __name__ == "__main__":
     # sort
     acts_gdf.sort_values(["started_at_destination"], inplace=True)
     acts_gdf = acts_gdf[acts_gdf["distance"] > 0]
+    acts_gdf["feat_prev_Mode::Car"] = 1  # for the prevmode feature
 
     if args.model_type == "rf":
         # define mode choice model
@@ -58,7 +59,6 @@ if __name__ == "__main__":
         pred = mode_choice_model.rf.predict(inp_rf)
         mode_sim = np.array(mode_choice_model.label_meanings)[pred]
     elif args.model_type == "irl":
-        acts_gdf["feat_prev_Mode::Car"] = 1  # for the prevmode feature
         mode_choice_model = IRLWrapper(model_path=args.model_path)
         # fast version for testing: pass all at once in an array
         feature_vec = np.array(acts_gdf[mode_choice_model.feat_columns]).astype(float)

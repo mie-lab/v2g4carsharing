@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from sqlalchemy import create_engine
 
-from preprocessing import clean_reservations
+from v2g4carsharing.optimization_data.preprocessing import clean_reservations
 
 
 def load_data_postgis(path_credentials, filter_ev=False):
@@ -168,18 +168,30 @@ def simulate_filter_evs(reservation, sim_ev_mode="sample_current"):
 
 def load_ev_data(
     path_clean_data="postgis",
-    sim_ev_mode="sample_current",
-    path_credentials="../../../goeco_login.json"
+    sim_ev_mode="scenario_1",
+    path_credentials="../../../goeco_login.json",
+    simulate = False
 ):
     filter_ev = sim_ev_mode == "filter"  # filter out or simulate non-ev cars?
-    if os.path.exists(path_clean_data):
-        reservation, relocation = load_data_csv(
-            path_clean_data, filter_ev=filter_ev
-        )
+    if simulate:
+        reservation = pd.read_csv(os.path.join(path_clean_data, "sim_reservations.csv"))
+        relocation = pd.DataFrame(columns=["vehicle_no"])
+        reservation["energytypegroup"] = "Benzin"
+        reservation["brand_name"] = "None"
+        reservation["model_name"] = "None"
+        reservation["drive_firststart"] = reservation["reservationfrom"]
+        reservation["drive_lastend"] = reservation["reservationto"]
+        reservation["end_station_no"] = reservation["start_station_no"]
+        reservation["reservationtype"] = "Simulated"
     else:
-        reservation, relocation = load_data_postgis(
-            path_credentials=path_credentials, filter_ev=filter_ev
-        )
+        if os.path.exists(path_clean_data):
+            reservation, relocation = load_data_csv(
+                path_clean_data, filter_ev=filter_ev
+            )
+        else:
+            reservation, relocation = load_data_postgis(
+                path_credentials=path_credentials, filter_ev=filter_ev
+            )
     # load, merge and filter data
     ev_reservation = simulate_filter_evs(reservation, sim_ev_mode=sim_ev_mode)
 

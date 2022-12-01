@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 
-from utils import FINAL_DATE, ts_to_index
+from v2g4carsharing.optimization_data.utils import FINAL_DATE, ts_to_index
 
 
 def get_matrices_per_vehicle(

@@ -2,6 +2,7 @@ import numpy as np
 import geopandas as gpd
 import os
 import time
+import json
 import pandas as pd
 from shapely import wkt
 from ast import literal_eval
@@ -268,8 +269,8 @@ def derive_reservations(acts_gdf_mode):
         columns={
             "id": "trip_ids",
             "person_id": "person_no",
-            "mode_decision_time": "reservationfrom",
-            "start_time_sec_destination": "reservationto",
+            "mode_decision_time": "reservationfrom_sec",
+            "start_time_sec_destination": "reservationto_sec",
             "closest_station_origin": "start_station_no",
         }
     )
@@ -278,6 +279,15 @@ def derive_reservations(acts_gdf_mode):
     # amend with some more information
     sim_reservations["drive_km"] = sim_reservations["distance"] / 1000
     sim_reservations["duration"] = (sim_reservations["reservationto"] - sim_reservations["reservationfrom"]) / 60 / 60
+    # convert times
+    with open("../../v2g4carsharing/config.json", "r") as infile:
+        date_simulation_2019 = json.load(infile)["date_simulation_2019"]
+    sim_reservations["reservationfrom"] = pd.to_datetime(date_simulation_2019) + pd.to_timedelta(
+        sim_reservations["reservationfrom_sec"], unit="S"
+    )
+    sim_reservations["reservationto"] = pd.to_datetime(date_simulation_2019) + pd.to_timedelta(
+        sim_reservations["reservationto_sec"], unit="S"
+    )
 
     return sim_reservations
 

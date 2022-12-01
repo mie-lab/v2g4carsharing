@@ -1,5 +1,8 @@
 import os
 import argparse
+import warnings
+
+warnings.filterwarnings(action="ignore")
 
 from v2g4carsharing.optimization_data.data_io import load_ev_data
 from v2g4carsharing.optimization_data.utils import (
@@ -19,6 +22,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("-s", "--scenario", type=str, default="scenario_1", help="EV scenario name")
     parser.add_argument("-t", "--time_granularity", type=float, default=0.25, help="discretization in hours")
+    parser.add_argument("--simulate", action="store_true", help="Whether the data is simulated reservations")
     args = parser.parse_args()
 
     # specify in and out paths here
@@ -31,7 +35,7 @@ if __name__ == "__main__":
     os.makedirs(out_path, exist_ok=True)
 
     # Load data
-    ev_reservation = load_ev_data(inp_path, sim_ev_mode=sim_ev_mode)
+    ev_reservation = load_ev_data(inp_path, sim_ev_mode=sim_ev_mode, simulate=args.simulate)
 
     # columns of resulting csv files
     columns = [

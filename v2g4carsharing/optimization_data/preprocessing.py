@@ -4,8 +4,6 @@ import numpy as np
 import datetime
 import time
 
-from utils import BASE_DATE, FINAL_DATE
-
 
 def get_corrected_end(row):
     # only the reservation ending can be changed in this setting
@@ -58,12 +56,13 @@ def clean_reservations(ev_reservation):
     Cleaned up here, TODO: move to preprocessing script
     """
     # assert no free floating
-    assert all(
-        ev_reservation["tripmode"] !=
-        "FreeFloating (Rückgabe an einem beliebigen Ort)"
-    )
+    if "tripmode" in ev_reservation.columns:
+        assert all(
+            ev_reservation["tripmode"] !=
+            "FreeFloating (Rückgabe an einem beliebigen Ort)"
+        )
     # remove the ones with drivekm =0
-    print("Number of ev reservaions before cleainng", len(ev_reservation))
+    print("Number of ev reservaions before cleaning", len(ev_reservation))
     ev_reservation.reset_index(inplace=True)
     ev_reservation = ev_reservation[ev_reservation["drive_km"] > 0]
     print("length after drive_km>0", len(ev_reservation))

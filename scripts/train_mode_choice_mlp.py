@@ -6,19 +6,19 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 import torch
 from torch.utils.data import DataLoader
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, classification_report
+from sklearn.linear_model import LogisticRegression
 
 from v2g4carsharing.mode_choice_model.mlp_baseline import ModeChoiceDataset, train_model, test_model, MLP
 from v2g4carsharing.mode_choice_model.prepare_train_data import prepare_data
 from v2g4carsharing.mode_choice_model.random_forest import RandomForestWrapper, rf_tuning
 from v2g4carsharing.mode_choice_model.evaluate import plot_confusion_matrix, feature_importance_plot
+from v2g4carsharing.mode_choice_model.simple_choice_models import LogisticRegressionWrapper
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def fit_random_forest(trips_mobis, out_path=os.path.join("outputs", "mode_choice_model"), model_save_name="rf_sim"):
-
-    f = open(os.path.join(out_path, "stdout_random_forest.txt"), "w")
-    sys.stdout = f
 
     # prepare data
     drop_columns = [col for col in trips_mobis.columns if col.startswith("feat_prev_Mode")]  # ["feat_caraccess"]
@@ -27,7 +27,7 @@ def fit_random_forest(trips_mobis, out_path=os.path.join("outputs", "mode_choice
 
     # Tuning and reporting test data performance
     labels_max_str = np.array(labels.columns)[np.argmax(np.array(labels), axis=1)]
-    X_train, X_test, y_train, y_test = train_test_split(features, labels_max_str, random_state = 1)
+    X_train, X_test, y_train, y_test = train_test_split(features, labels_max_str, random_state=1)
     # find best max depth
     best_acc = 0
     for max_depth in [20, 30, 50, None]:
@@ -63,8 +63,6 @@ def fit_random_forest(trips_mobis, out_path=os.path.join("outputs", "mode_choice
     # print(carsharing_share_mobis, carsharing_share_sim, np.unique(labels_sim, return_counts=True))
     # print("Ratio  of sim mode share vs mobis mode share (should be 1)", carsharing_share_sim / carsharing_share_mobis)
 
-    f.close()
-
 
 def fit_mlp(trips_mobis):
     epochs = 2
@@ -88,6 +86,41 @@ def fit_mlp(trips_mobis):
     train_model(model, epochs, train_loader, test_loader, device=device)
 
     test_model(model, X_test, y_test, labels.columns)
+
+
+def fit_logistic_regression(trips_mobis, model_save_name):
+    cutoff = 0.5
+    # binary task --> how many to include
+    balance_ratio = 2
+    nr_carsharing = sum(trips_mobis["Mode::CarsharingMobility"] > cutoff)
+
+    subset = trips_mobis[trips_mobis["Mode::CarsharingMobility"] < cutoff].index.values
+    inds = np.random.permutation(len(subset))
+    subset = subset[inds[: int(nr_carsharing * balance_ratio)]]
+    data = pd.concat((trips_mobis.loc[subset], trips_mobis[trips_mobis["Mode::CarsharingMobility"] > cutoff]))
+
+    features = data[[col for col in data.columns if col.startswith("feat")]]
+
+    data["label"] = pd.NA
+    data.loc[data["Mode::CarsharingMobility"].values > cutoff, "label"] = "Mode::CarsharingMobility"
+    data["label"].fillna("Mode::Other", inplace=True)
+
+    model = LogisticRegression()
+    model.fit(features, data["label"])
+    wrapped_model = LogisticRegressionWrapper()
+    wrapped_model.model = model
+    wrapped_model.feat_columns = model.feature_names_in_
+    wrapped_model.label_meanings = model.classes_
+
+    # no split necessary because the model cannot overfit
+    pred = wrapped_model(features)
+    print("----- TEST results")
+    print("Acc:", accuracy_score(pred, data["label"]))
+    print("Balanced Acc:", balanced_accuracy_score(pred, data["label"]))
+
+    print(classification_report(pred, data["label"]))
+
+    wrapped_model.save(model_save_name)
 
 
 if __name__ == "__main__":
@@ -118,5 +151,13 @@ if __name__ == "__main__":
     # load data
     trips_mobis = pd.read_csv(args.in_path_mobis)
 
-    fit_random_forest(trips_mobis, out_path=out_path, model_save_name=args.save_name)
+    f = open(os.path.join(out_path, "stdout_model_train_test.txt"), "w")
+    sys.stdout = f
+
+    if "logistic" in args.save_name:
+        fit_logistic_regression(trips_mobis, model_save_name=args.save_name)
+    else:
+        fit_random_forest(trips_mobis, out_path=out_path, model_save_name=args.save_name)
+
+    f.close()
 

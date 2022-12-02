@@ -58,6 +58,11 @@ if __name__ == "__main__":
         inp_rf = np.array(acts_gdf[mode_choice_model.feat_columns])
         pred = mode_choice_model.rf.predict(inp_rf)
         mode_sim = np.array(mode_choice_model.label_meanings)[pred]
+    elif args.model_type == "logistic":
+        with open(args.model_path, "rb") as infile:
+            mode_choice_model = pickle.load(infile)
+        inp_rf = np.array(acts_gdf[mode_choice_model.feat_columns])
+        mode_sim = mode_choice_model.model.predict(inp_rf)
     elif args.model_type == "irl":
         mode_choice_model = IRLWrapper(model_path=args.model_path)
         # fast version for testing: pass all at once in an array

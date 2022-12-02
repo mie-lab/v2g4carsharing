@@ -58,8 +58,8 @@ def compare_user_dist(res_real, res_sim, out_path=None):
 
 
 name_mapping = {
-    "reservationfrom": "Reservation start time (h)",
-    "reservationto": "Reservation end time (h)",
+    "reservationfrom_sec": "Reservation start time (h)",
+    "reservationto_sec": "Reservation end time (h)",
     "drive_km": "Distance (km)",
     "duration": "Duration (h)",
     "station": "Reservation count per station",
@@ -70,6 +70,7 @@ def compare_hist_dist(res_real, res_sim, col_name, out_path=None):
     print("Distribution of ", col_name)
     names = ["Mobility dataset", "Simulated"]
     plt.figure(figsize=(10, 4))
+    sim_col_update = {}
     for i, res in enumerate([res_real, res_sim]):
         plt.subplot(1, 2, i + 1)
         if col_name == "duration":
@@ -81,7 +82,9 @@ def compare_hist_dist(res_real, res_sim, col_name, out_path=None):
         else:
             bins = np.arange(0, 85000, 5000)
             plt.xticks([i * 3600 * 2 for i in range(12)], np.arange(0, 24, 2))
-        plt.hist(res[col_name], bins=bins)
+        if col_name in ["reservationfrom", "reservationto"] and col_name + "_sec" in res.columns:
+            sim_col_update[col_name] = col_name + "_sec"
+        plt.hist(res[sim_col_update.get(col_name, col_name)], bins=bins)
         plt.xticks(fontsize=20)
         plt.xlabel(name_mapping.get(col_name, col_name), fontsize=20)
         plt.title(names[i], fontsize=20)
@@ -92,7 +95,10 @@ def compare_hist_dist(res_real, res_sim, col_name, out_path=None):
         plt.savefig(os.path.join(out_path, "distribution_" + col_name + ".png"))
     else:
         plt.show()
-    print("Wasserstein:", scipy.stats.wasserstein_distance(res_real[col_name], res_sim[col_name]))
+    print(
+        "Wasserstein:",
+        scipy.stats.wasserstein_distance(res_real[col_name], res_sim[sim_col_update.get(col_name, col_name)]),
+    )
 
 
 def compare_station_dist_one_day(res_sim, in_path_real, out_path):

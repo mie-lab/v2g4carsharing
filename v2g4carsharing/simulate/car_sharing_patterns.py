@@ -278,9 +278,11 @@ def derive_reservations(acts_gdf_mode):
 
     # amend with some more information
     sim_reservations["drive_km"] = sim_reservations["distance"] / 1000
-    sim_reservations["duration"] = (sim_reservations["reservationto"] - sim_reservations["reservationfrom"]) / 60 / 60
+    sim_reservations["duration"] = (
+        (sim_reservations["reservationto_sec"] - sim_reservations["reservationfrom_sec"]) / 60 / 60
+    )
     # convert times
-    with open("../../v2g4carsharing/config.json", "r") as infile:
+    with open("config.json", "r") as infile:
         date_simulation_2019 = json.load(infile)["date_simulation_2019"]
     sim_reservations["reservationfrom"] = pd.to_datetime(date_simulation_2019) + pd.to_timedelta(
         sim_reservations["reservationfrom_sec"], unit="S"

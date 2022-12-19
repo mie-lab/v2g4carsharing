@@ -4,7 +4,7 @@ outputs/
 figures/
 *.png
 trained_models/
-csv/station_scenario/
+csv/
 
 # Mac
 .DS_Store

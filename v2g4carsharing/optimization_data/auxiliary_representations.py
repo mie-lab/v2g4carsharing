@@ -128,26 +128,29 @@ def compute_usage(data_path, time_granularity=24):
 
 def prepare_scenario_1(base_path="."):
     # Load basics
-    reservation = pd.read_csv(
-        os.path.join(base_path, "data", "reservation.csv")
-    )
-    vehicle = pd.read_csv(os.path.join(base_path, "data", "vehicle.csv"))
+    vehicle = pd.read_csv(os.path.join(base_path, "data", "vehicle.csv"), index_col="vehicle_no")
     # Load scenario
     scenario = pd.read_csv(
         os.path.join(base_path, "csv", "scenario_1_models.csv")
     )
+    # # V1: Only take the vehicles that appear in the reservations
+    # reservation = pd.read_csv(
+    #     os.path.join(base_path, "data", "reservation.csv")
+    # )
     # merge vehicle information
-    res_veh = reservation.merge(
-        vehicle, how="left", left_on="vehicle_no", right_on="vehicle_no"
-    )
-    veh_cat = res_veh.groupby("vehicle_no").agg(
-        {
-            "vehicle_category": "first",
-            "energytypegroup_x": "first"
-        }
-    )
+    # res_veh = reservation.merge(
+    #     vehicle, how="left", left_on="vehicle_no", right_on="vehicle_no"
+    # )
+    # veh_cat = res_veh.groupby("vehicle_no").agg(
+    #     {
+    #         "vehicle_category": "first",
+    #         "energytypegroup_x": "first"
+    #     }
+    # )
     # filter for non EVs
-    veh_cat_ev = veh_cat[veh_cat["energytypegroup_x"] != "Electro"]
+    veh_cat_ev = (vehicle[vehicle["energytypegroup"] != "Electro"]).drop(
+        ["brand_name", "model_name", "energytype"], axis=1
+    )
     # merge with scneario
     new_model_by_veh = veh_cat_ev.reset_index().merge(
         scenario, left_on="vehicle_category", right_on="vehicle_category"
@@ -155,3 +158,7 @@ def prepare_scenario_1(base_path="."):
     new_model_by_veh.set_index("vehicle_no").drop(
         "vehicle_category", axis=1
     ).to_csv(os.path.join(base_path, "csv", "scenario_1.csv"))
+
+
+if __name__ == "__main__":
+    prepare_scenario_1()

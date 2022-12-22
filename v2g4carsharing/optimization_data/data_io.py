@@ -150,12 +150,16 @@ def simulate_filter_evs(reservation, sim_ev_mode="sample_current"):
                                ).set_index("vehicle_no")
         # second: get brand and model for all EVs
         evs_in_fleet = get_ev_models(reservation)
-        # merge
-        all_models = pd.concat((scenario, evs_in_fleet))
+        # concatenate to yield a list of all brand-models for fake and real EVs
+        # Note: it can happen that EV models are in the real EVs and in the fake EVs. We use keep=first to remove the
+        # duplicates but to keep the first ones
+        all_models = pd.concat((evs_in_fleet, scenario)).reset_index().drop_duplicates(
+            subset="vehicle_no", keep="first"
+        )
         # replace real models with the simulated ones
         reservation = reservation.drop(
             columns=["brand_name", "model_name"]
-        ).merge(all_models, left_on="vehicle_no", right_index=True)
+        ).merge(all_models, left_on="vehicle_no", right_on="vehicle_no")
         # merge with EV specs
         return reservation.merge(
             ev_models, left_on=("brand_name", "model_name"), right_index=True

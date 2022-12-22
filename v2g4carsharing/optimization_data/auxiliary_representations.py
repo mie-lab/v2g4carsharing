@@ -137,7 +137,7 @@ def prepare_scenario_1(base_path="."):
     # reservation = pd.read_csv(
     #     os.path.join(base_path, "data", "reservation.csv")
     # )
-    # merge vehicle information
+    # # merge vehicle information
     # res_veh = reservation.merge(
     #     vehicle, how="left", left_on="vehicle_no", right_on="vehicle_no"
     # )
@@ -147,8 +147,11 @@ def prepare_scenario_1(base_path="."):
     #         "energytypegroup_x": "first"
     #     }
     # )
-    # filter for non EVs
-    veh_cat_ev = (vehicle[vehicle["energytypegroup"] != "Electro"]).drop(
+    # # filter for non EVs
+    # veh_cat_ev = vehicle[vehicle["energytypegroup"] != "Electro"].drop(
+    #     ["brand_name", "model_name", "energytype"], axis=1
+    # )
+    veh_cat_ev = vehicle.drop(
         ["brand_name", "model_name", "energytype"], axis=1
     )
     # merge with scneario

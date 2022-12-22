@@ -53,22 +53,27 @@ if __name__ == "__main__":
     parser.add_argument(
         "-k", "--keep_geom", action="store_true", help="if flag set, keep the geometry column",
     )
+    parser.add_argument(
+        "-o", "--out_path", type=str, default=None, # if None, the in_path is used
+    )
     args = parser.parse_args()
     # Set paths:
     # for simulated: "../data/simulated_population/sim_2022"
     # for mobis: "../data/mobis/"
 
     in_path = args.in_path
+    out_path = args.out_path if args.out_path is not None else in_path
     print("Removing geometry?", not args.keep_geom)
 
     feat_collector = ModeChoiceFeatures(in_path)
+    print("Number of users initially", feat_collector.trips["person_id"].nunique())
     if args.reduce_samples > 0:
         feat_collector.subsample(nr_users_desired=args.reduce_samples)
     feat_collector.add_all_features()
-    feat_collector.save(remove_geom=(not args.keep_geom))
+    feat_collector.save(out_path=out_path, remove_geom=(not args.keep_geom))
 
     # If we have created the simulated features, and the mobis features already exist, compare them
     mobis_path = os.path.join("..", "data", "mobis", "trips_features.csv")
     if os.path.exists(mobis_path) and "sim" in in_path:
         print("Comparing features")
-        compare_feature_distributions(mobis_path, in_path)
+        compare_feature_distributions(mobis_path, out_path)

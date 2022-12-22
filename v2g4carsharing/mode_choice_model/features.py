@@ -180,11 +180,13 @@ class ModeChoiceFeatures:
         self.add_time_features(origin_or_destination="destination")
         print(time.time() - tic)
 
-    def save(self, remove_geom=False):
+    def save(self, out_path=None, remove_geom=False):
         # remove geom (for more efficient saving)
         if remove_geom:
             out_trips = self.trips.drop([col for col in self.trips.columns if "geom" in col], axis=1)
         else:
             out_trips = self.trips
-        out_trips.to_csv(os.path.join(self.path, "trips_features.csv"))
+        if out_path is None:
+            out_path = self.path
+        out_trips.to_csv(os.path.join(out_path, "trips_features.csv"))
 

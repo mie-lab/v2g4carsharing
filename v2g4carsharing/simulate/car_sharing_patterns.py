@@ -258,6 +258,7 @@ def derive_reservations(acts_gdf_mode):
         "id": list,
         "person_id": "first",
         "vehicle_no": "first",
+        "distance_to_station_origin": "first",
         "distance_to_station_destination": "last",
         "mode_decision_time": "first",  # first decision time is the start of the booking
         "start_time_sec_destination": "last",  # last start time (of activity) is the end of the booking

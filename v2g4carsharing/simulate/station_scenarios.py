@@ -6,11 +6,131 @@ from v2g4carsharing.simulate.car_sharing_patterns import load_stations
 from v2g4carsharing.import_data.import_utils import write_geodataframe
 
 
-def simple_vehicle_station_scenario(in_path, out_path=os.path.join("csv", "station_scenario")):
+import warnings
+
+
+def station_scenario(
+    station_scenario="all_stations", vehicle_scenario=5000, in_path="data/", sim_date="2020-01-01 00:00:00",
+):
+    # current scenario: only 1500 stations, as claimed on the website
+    # all_stations scenario: 1916 stations (maximum that appear in the reservations)
+    # new stations scenario: XX_new_stations places XX further stations somehwere
+    # "all_stations" or "current" or "30_new_stations"
+
+    v2base = pd.read_csv(os.path.join(in_path, "vehicle_to_base.csv"))
+    station = load_stations(in_path)
+    print(len(station))
+    station = station[station["in_reservation"]]
+
+    # get the vehicle distribution over stations for one day
+    v2base_at_sim_date = v2base[(v2base["bizbeg"] <= sim_date) & (v2base["bizend"] > sim_date)]
+    v2base_at_sim_date = (
+        v2base_at_sim_date.groupby("station_no")
+        .agg({"vehicle_no": list})
+        .rename(columns={"vehicle_no": "vehicle_list"})
+    )
+
+    # Merge with the station geometry such that all stations appear (the ones in the reservations)
+    # Note: some have pd.NA in the vehicle list if no vehicle was there
+    # already the final table, however, some entries in vehicle_list are NaN
+    station_veh_list = station[["geom"]].merge(v2base_at_sim_date, how="left", left_index=True, right_index=True)
+    print(type(station_veh_list))
+
+    # remove stations with invalid geometry
+    print(len(station_veh_list))
+    station_veh_list = station_veh_list[station_veh_list["geom"].x != 0]
+    # .str.contains("(0.00", regex=False)] # old versio
+    print("after removing some with invalid geometry:", len(station_veh_list))
+
+    # if we want a realistic current situation, we drop the vehicles that have NaNs
+    if station_scenario == "current_scenario":
+        station_veh_list = station_veh_list.dropna()
+
+    print(
+        "Number of stations:",
+        len(station_veh_list),
+        ", davon stations without vehicle:",
+        pd.isna(station_veh_list["vehicle_list"]).sum(),
+    )
+
+    # ======== Assign vehicles ==========
+    def get_veh_list_from_df(veh_list_values):
+        nested_lists = [l for l in veh_list_values if type(l) == list]
+        all_occuring_vehicles = [e for elem in nested_lists for e in elem]
+        return all_occuring_vehicles
+
+    uni_veh = get_veh_list_from_df(station_veh_list["vehicle_list"].values)
+
+    station_veh_list["nr_veh"] = station_veh_list["vehicle_list"].apply(lambda x: len(x) if type(x) == list else 1)
+
+    veh_scale_factor = vehicle_scenario / station_veh_list["nr_veh"].sum()
+
+    # Simulate a new distribution of vehicles over station by scaling the current number by veh_scale_factor
+    max_trials = 100
+    max_dev = 0.005 * vehicle_scenario
+    dev, trial_counter = np.inf, 0
+    while trial_counter < max_trials and dev > max_dev:
+        desired_veh_per_station = (
+            (station_veh_list["nr_veh"] * np.random.normal(veh_scale_factor, 0.3, size=len(station_veh_list)))
+            .round()
+            .astype(int)
+        )
+        dev = abs(desired_veh_per_station.sum() - vehicle_scenario)
+        trial_counter += 1
+    if trial_counter >= max_trials:
+        warnings.warn("Could not find a suitable vehicle number distribution in feasible time")
+    # save the result in a new column
+    station_veh_list["nr_veh_desired"] = desired_veh_per_station
+
+    # get possible vehicle IDs to fill the gaps
+    possible_veh_ids = pd.read_csv(os.path.join(in_path, "vehicle.csv"))["vehicle_no"]
+    possible_veh_ids = possible_veh_ids[~(possible_veh_ids.isin(uni_veh))].values
+
+    # Iterate over stations and update / add the vehicle IDs
+    new_id_counter = 0
+    vehicle_set = set()
+    all_new_lists = []
+    for _, row in station_veh_list.iterrows():
+        veh_list = row["vehicle_list"]
+        #     desired_veh_list = row["nr_veh_desired"]
+        # new stations --> no vehicle assigned yet, set to empty list
+        if type(veh_list) != list:
+            assert pd.isna(veh_list)
+            veh_list = []
+
+        # fill list of new vehicle IDs iteratively and use new IDs where necessary
+        new_list = []
+        for i in range(row["nr_veh_desired"]):
+            if i < len(veh_list):
+                veh = veh_list[i]
+                if veh in vehicle_set:
+                    new_list.append(possible_veh_ids[new_id_counter])
+                    new_id_counter += 1
+                else:
+                    new_list.append(veh)
+            else:
+                # new vehicle ID must be used
+                new_list.append(possible_veh_ids[new_id_counter])
+                new_id_counter += 1
+
+        # add to the final Series that will be the new list of vehicles
+        all_new_lists.append(new_list)
+        # add the newly used IDs to the set to ensure uniqueness
+        vehicle_set.update(new_list)
+
+    station_veh_list["vehicle_list"] = all_new_lists
+
+    # test again
+    uni_vals = get_veh_list_from_df(station_veh_list["vehicle_list"].values)
+    assert len(uni_vals) == desired_veh_per_station.sum()
+
+    print(f"Final scenario has {len(station_veh_list)} stations and {len(uni_vals)} vehicles")
+
+    return station_veh_list[["vehicle_list", "geom"]]
+
+
+def max_ever_scenario(in_path, out_path=os.path.join("csv", "station_scenario")):
     # Current rationale: maximum capacity of mobility: max no of cars that have been at a station at the same time
-    # TODO: this should be moved into new file. it is only here for backup
-    # TODO: CAREFUL: the vehicle IDs can appear in the vehicle_list for multiple stations! tow vehicles can therefore
-    # be in use at the same time. this must be prevented in future scenarios.
     # simply check each month:
     def get_all_dates():
         date_template = "20JJ-MM-02"
@@ -30,6 +150,7 @@ def simple_vehicle_station_scenario(in_path, out_path=os.path.join("csv", "stati
         return one_station[beg_before & end_after]
 
     def get_max_veh(one_station):
+        """Find the dates where the maximum was reached and take the list of vehicle IDs on that date"""
         nr_veh = []
         for date in all_dates:
             stations_in_date_range = in_date_range(one_station, date)
@@ -56,7 +177,7 @@ def simple_vehicle_station_scenario(in_path, out_path=os.path.join("csv", "stati
     veh_per_station = pd.DataFrame(veh_per_station, columns=["vehicle_list"])
 
     # merge with geometry
-    veh_per_station = station_df[["geom"]].merge(veh_per_station, left_index=True, right_index=True, how="right")
+    veh_per_station = veh_per_station.merge(station_df[["geom"]], left_index=True, right_index=True, how="left")
 
     # ------- Fix duplicates -----
     # compute all occuring vehicle IDs

@@ -63,6 +63,7 @@ if __name__ == "__main__":
 
     in_path = args.in_path
     out_path = args.out_path if args.out_path is not None else in_path
+    os.makedirs(out_path, exist_ok=True)
     print("Removing geometry?", not args.keep_geom)
 
     feat_collector = ModeChoiceFeatures(in_path)

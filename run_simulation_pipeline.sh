@@ -27,3 +27,12 @@ python scripts/evaluate_simulated_data.py -i "outputs/simulated_car_sharing/xgb_
 # generate realistic booking data for irl
 python scripts/generate_car_sharing_data.py -i "../data/simulated_population/sim_2019" -o "outputs/simulated_car_sharing/irl_2019_sim" -t "irl" -m "../external_repos/guided-cost-learning/trained_models/best_model/model"
 python scripts/evaluate_simulated_data.py -i "outputs/simulated_car_sharing/irl_2019_sim"
+
+
+# SCENARIO SIMULATION
+python scripts/featurize_trips.py -i "../data/simulated_population/sim_2030" --keep_geom  -r 100000 -o "../data/simulated_population/sim_2030/scenario_100k"
+python scripts/featurize_trips.py -i "../data/simulated_population/sim_2030" --keep_geom  -r 250000 -o "../data/simulated_population/sim_2030/scenario_250k"
+# simulate 100k scenario with current station data
+python scripts/generate_car_sharing_data.py -i "../data/simulated_population/sim_2030/scenario_100k/" -o "outputs/simulated_car_sharing/test_scenario_2030_xgbprevmode_u100k_s1" -m "trained_models/xgb_prevmode.p"
+# convert into matrices
+python scripts/prepare_optimization_data.py --simulate -i "outputs/simulated_car_sharing/scenario_2030_xgbprevmode_u100k_s1/" -o "outputs/simulated_car_sharing/scenario_2030_xgbprevmode_u100k_s1/input_matrices"

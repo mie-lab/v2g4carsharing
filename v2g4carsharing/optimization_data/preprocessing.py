@@ -26,7 +26,7 @@ def get_corrected_start(row):
     # then station mismatch because of 0-minute-relocations
     return row["reservationfrom"]
 
-
+bad_counter = 0
 def get_corrected_per_veh(df):
     # sort by time
     df.sort_values("drive_firststart", inplace=True)
@@ -37,6 +37,11 @@ def get_corrected_per_veh(df):
     # get previous reservation
     df["prev_reservation_no"] = df["reservation_no"].shift(1)
     df["prev_reservationto"] = df["reservationto"].shift(1)
+
+    if len(df[df["next_reservationfrom"] < df["reservationto"]]) > 0 or len(df[df["reservationfrom"] < df["prev_reservationto"]]) > 0:
+        global bad_counter 
+        bad_counter += 1
+        print(df["reservationfrom"].values[1], df["vehicle_no"].unique())
 
     # first change the end time
     df["end_time"] = df.apply(get_corrected_end, axis=1)
@@ -71,6 +76,7 @@ def clean_reservations(ev_reservation):
     ev_preprocessed = ev_reservation.groupby("vehicle_no"
                                              ).apply(get_corrected_per_veh)
     print("length after cleaning", len(ev_preprocessed))
+    print("Problems with end time after start of next", bad_counter, "out of", len(ev_preprocessed))
 
     # remove the ones that are wrong after cleaning
     ev_preprocessed = ev_preprocessed[

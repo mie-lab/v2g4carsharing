@@ -119,10 +119,27 @@ def assign_mode(acts_gdf_mode, station_scenario, mode_choice_function):
     shared_starting_station, shared_starting_location, prev_mode = {}, {}, {}
     # keep track of the vehicle ID of the currently borrowed car
     shared_vehicle_id = {}
+    # keep list of cars that are scheduled to be given back at a certain time
+    scheduled_car_returns = []
 
     tic = time.time()
-    final_modes, final_veh_ids = [], []
+    final_modes, final_veh_ids, final_start_station, final_end_station = [], [], [], []
     for idx, row in acts_gdf_mode.iterrows():
+
+        # return all cars that are scheduled for return
+        number_returned = 0
+        for car_return_info in scheduled_car_returns:
+            return_time, return_station, return_vehicle = car_return_info
+            if return_time > row["mode_decision_time"]:
+                # stop iteration if we have a car that has
+                break
+            # return the vehicle
+            per_station_veh_avail[return_station].append(return_vehicle)
+            number_returned += 1
+            print(f"returned {return_vehicle} to station {return_station}")
+        if number_returned > 0:
+            scheduled_car_returns = scheduled_car_returns[number_returned:]
+
         # get necessary variables
         person_id = row["person_id"]
         closest_station = row["closest_station_origin"]  # closest station at previous activity for starting
@@ -133,19 +150,27 @@ def assign_mode(acts_gdf_mode, station_scenario, mode_choice_function):
         if shared_start:
             shared_vehicle = shared_vehicle_id[person_id]
             final_veh_ids.append(shared_vehicle)  # current veh ID is the shared vehicle
+            final_start_station.append(-1)
             final_modes.append("Mode::CarsharingMobility")
             # check whether we are back at the start station --> give back the car
             # Two possibilities: Either we picked up the car at the closest station, and we are back there, or we are
             # simply back at the same ID
             shared_start_loc = shared_starting_location[person_id]
             if shared_start == row["closest_station_destination"] or shared_start_loc == row["location_id_destination"]:
-                # give vehicle back to station
-                per_station_veh_avail[shared_start].append(shared_vehicle)
+                # schedule the return of the vehicle at a certain time and place
+                scheduled_car_returns.append((row["start_time_sec_destination"], shared_start, shared_vehicle))
+                print("scheduled for return", scheduled_car_returns[-1])
+                # resort the return schedule by time
+                scheduled_car_returns = sorted(scheduled_car_returns, key=lambda x: x[0])
                 # clean the dictionary entries
                 del shared_starting_station[person_id]
                 del shared_starting_location[person_id]
                 del shared_vehicle_id[person_id]
-                # print(person_id, "gave shared car back at station", shared_start)
+                # if we returned the car, we log the start station
+                final_end_station.append(shared_start)
+            else:
+                # if we kept the car, we log -1 as the end station
+                final_end_station.append(-1)
             continue
 
         # otherwise: decide whether to borrow the car
@@ -181,7 +206,7 @@ def assign_mode(acts_gdf_mode, station_scenario, mode_choice_function):
         if mode == "Mode::CarsharingMobility" and (
             row["distance_to_station_origin"] > row["distance"] * 0.5 or pd.isna(closest_station)
         ):
-            print("Applying hard cutoff: using car instead of carsharing")
+            # print("Applying hard cutoff: using car instead of carsharing")
             mode = "Mode::Car"
 
         # if shared, set vehicle as borrowed and remember the pick up station (for return)
@@ -191,13 +216,18 @@ def assign_mode(acts_gdf_mode, station_scenario, mode_choice_function):
             shared_starting_station[person_id] = closest_station
             shared_starting_location[person_id] = row["location_id_origin"]
             final_veh_ids.append(veh_id_borrow)
+            final_start_station.append(closest_station)
+            final_end_station.append(-1)
             print(person_id, "borrowed car at station", closest_station)
 
         final_modes.append(mode)
         prev_mode[person_id] = mode
         if mode != "Mode::CarsharingMobility":
             final_veh_ids.append(-1)
+            final_start_station.append(-1)
+            final_end_station.append(-1)
         if len(final_modes) % 1000 == 0:
+            print("decision time", row["mode_decision_time"])
             print("Step:", len(final_modes), ": currend mode share:")
             uni, counts = np.unique(final_modes, return_counts=True)
             print({u: c for u, c in zip(uni, counts)})
@@ -205,18 +235,21 @@ def assign_mode(acts_gdf_mode, station_scenario, mode_choice_function):
     print("time for reservation generation:", time.time() - tic)
     acts_gdf_mode["mode"] = final_modes
     acts_gdf_mode["vehicle_no"] = final_veh_ids
+    acts_gdf_mode["start_station_no"] = final_start_station
+    acts_gdf_mode["end_station_no"] = final_end_station
     # sort back
     acts_gdf_mode.sort_values(["person_id", "activity_index"], inplace=True)
     return acts_gdf_mode
 
 
-def derive_reservations(acts_gdf_mode):
+def derive_reservations(acts_gdf_mode, mean_h_oneway=1.7, std_h_oneway=0.7):
     acts_gdf_mode["index_temp"] = acts_gdf_mode.index.values
     acts_gdf_mode["next_person_id"] = acts_gdf_mode["person_id"].shift(-1).values
     acts_gdf_mode["next_mode"] = acts_gdf_mode["mode"].shift(-1).values
     # # relevant if including cond5 / cond6
     # acts_gdf_mode["next_activity_index"] = acts_gdf_mode["activity_index"].shift(-1).values
     acts_gdf_mode["next_vehicle_no"] = acts_gdf_mode["vehicle_no"].shift(-1).values
+    acts_gdf_mode["next_start_station_no"] = acts_gdf_mode["start_station_no"].shift(-1).values
 
     # merge the bookings to subsequent activities:
     cond = pd.Series(data=False, index=acts_gdf_mode.index)
@@ -240,8 +273,10 @@ def derive_reservations(acts_gdf_mode):
         # include cond5? Contra: We might give the vehicle back and borrow another one an hour later at the same
         # location, # which does not make sense. Pro: If we aggregate two different vehicles, another user might now
         # have the first vehicle, so one vehicle is used twice by two different users! --> leads to problems
+        # NOTE: there is still a special case if a user by chance borrows the same car again. I decided to ignore it
+        cond6 = (acts_gdf_mode["end_station_no"] == -1) & (acts_gdf_mode["next_start_station_no"] == -1)
 
-        cond = cond0 & cond1 & cond2 & cond3 & cond4 & cond5
+        cond = cond0 & cond1 & cond2 & cond3 & cond4 & cond5 & cond6
 
         # assign index to next row
         acts_gdf_mode.loc[cond, "index_temp"] = acts_gdf_mode.loc[cond, "next_id"]
@@ -263,7 +298,8 @@ def derive_reservations(acts_gdf_mode):
         "mode_decision_time": "first",  # first decision time is the start of the booking
         "start_time_sec_destination": "last",  # last start time (of activity) is the end of the booking
         "distance": "sum",  # covered distance
-        "closest_station_origin": "first",  # first station must be the start station (possibly, the car is not returned)
+        "start_station_no": "first",  # first station must be the start station (possibly, the car is not returned)
+        "end_station_no": "last",
     }
     sim_reservations = shared_rides.reset_index().groupby(by="index_temp").agg(agg_dict)
     sim_reservations = sim_reservations.rename(
@@ -272,16 +308,29 @@ def derive_reservations(acts_gdf_mode):
             "person_id": "person_no",
             "mode_decision_time": "reservationfrom_sec",
             "start_time_sec_destination": "reservationto_sec",
-            "closest_station_origin": "start_station_no",
         }
     )
     sim_reservations.index.name = "reservation_no"
+
+    # correct the one-way trips (they occur when the day ends before the car was returned)
+    one_way = sim_reservations["start_station_no"] != sim_reservations["end_station_no"]
+    print("ratio of one way trips", sum(one_way) / len(one_way))
+    # add some time to return the car
+    sim_reservations.loc[one_way, "reservationto_sec"] += np.clip(
+        np.random.normal(mean_h_oneway * 3600, std_h_oneway * 3600, size=sum(one_way)), 0, None
+    )
+    sim_reservations.loc[one_way, "end_station_no"] = sim_reservations.loc[one_way, "start_station_no"]
 
     # amend with some more information
     sim_reservations["drive_km"] = sim_reservations["distance"] / 1000
     sim_reservations["duration"] = (
         (sim_reservations["reservationto_sec"] - sim_reservations["reservationfrom_sec"]) / 60 / 60
     )
+    print(
+        "average duration of one way trips (after adding 2 hours):",
+        np.mean((sim_reservations.loc[one_way, "duration"]).values),
+    )
+    print("average duration of return trips:", np.mean(sim_reservations.loc[~one_way, "duration"].values))
     # convert times
     with open("config.json", "r") as infile:
         date_simulation_2019 = json.load(infile)["date_simulation_2019"]

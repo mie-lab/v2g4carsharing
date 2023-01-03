@@ -37,7 +37,7 @@ if __name__ == "__main__":
         "-s",
         "--station_scenario",
         type=str,
-        default=os.path.join("csv", "station_scenario", "same_stations.csv"),
+        default=os.path.join("csv", "station_scenario", "scenario_all_3500.csv"),
         help="path to station_scenario",
     )
     parser.add_argument(

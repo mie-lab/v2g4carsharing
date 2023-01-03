@@ -1,7 +1,10 @@
 import os
+import time
+import pickle
 import pandas as pd
 import numpy as np
-
+import geopandas as gpd
+import matplotlib.pyplot as plt
 from v2g4carsharing.simulate.car_sharing_patterns import load_stations
 from v2g4carsharing.import_data.import_utils import write_geodataframe
 
@@ -10,11 +13,11 @@ import warnings
 
 
 def station_scenario(
-    station_scenario="all_stations", vehicle_scenario=5000, in_path="data/", sim_date="2020-01-01 00:00:00",
+    station_scenario="all", vehicle_scenario=5000, in_path="data/", sim_date="2020-01-01 00:00:00",
 ):
     # current scenario: only 1500 stations, as claimed on the website
     # all_stations scenario: 1916 stations (maximum that appear in the reservations)
-    # new stations scenario: XX_new_stations places XX further stations somehwere
+    # new stations scenario: newXX_stations places XX further stations somehwere
     # "all_stations" or "current" or "30_new_stations"
 
     v2base = pd.read_csv(os.path.join(in_path, "vehicle_to_base.csv"))
@@ -39,12 +42,25 @@ def station_scenario(
     # remove stations with invalid geometry
     print(len(station_veh_list))
     station_veh_list = station_veh_list[station_veh_list["geom"].x != 0]
-    # .str.contains("(0.00", regex=False)] # old versio
+    station_veh_list = station_veh_list[station_veh_list["geom"].y >= 0]
     print("after removing some with invalid geometry:", len(station_veh_list))
 
-    # if we want a realistic current situation, we drop the vehicles that have NaNs
-    if station_scenario == "current_scenario":
+    # if we want a realistic current situation, we drop the stations that have no vehicles assigned
+    if station_scenario == "current":
         station_veh_list = station_veh_list.dropna()
+        print("After reducing to the current stations", len(station_veh_list))
+    # place new stations if necessary
+    elif station_scenario.startswith("new"):
+        nr_new_stations = int(station_scenario[3:])
+        current_station_locations = np.swapaxes(
+            np.array([station_veh_list["geom"].x, station_veh_list["geom"].x]), 1, 0
+        )
+        new_stations = place_new_stations(nr_new_stations, current_station_locations, subsample_population=500000)
+        start_ind = np.max(station_veh_list.index)
+        new_stations["station_no"] = np.arange(start_ind, start_ind + len(new_stations), 1)
+        new_stations["vehicle_list"] = pd.NA
+        new_stations = new_stations.rename(columns={"geometry": "geom"}).set_index("station_no")
+        station_veh_list = pd.concat((station_veh_list, new_stations))
 
     print(
         "Number of stations:",
@@ -63,24 +79,30 @@ def station_scenario(
 
     station_veh_list["nr_veh"] = station_veh_list["vehicle_list"].apply(lambda x: len(x) if type(x) == list else 1)
 
-    veh_scale_factor = vehicle_scenario / station_veh_list["nr_veh"].sum()
+    if vehicle_scenario <= station_veh_list["nr_veh"].sum():
+        print("Keep current nr of vehicles:", station_veh_list["nr_veh"].sum())
+        # option 1: we don't need to scale the number of vehicles
+        station_veh_list["nr_veh_desired"] = station_veh_list["nr_veh"]
+    else:
+        # Option 2: scenario has more vehicles than currently in the data, so scale them
+        veh_scale_factor = vehicle_scenario / station_veh_list["nr_veh"].sum()
 
-    # Simulate a new distribution of vehicles over station by scaling the current number by veh_scale_factor
-    max_trials = 100
-    max_dev = 0.005 * vehicle_scenario
-    dev, trial_counter = np.inf, 0
-    while trial_counter < max_trials and dev > max_dev:
-        desired_veh_per_station = (
-            (station_veh_list["nr_veh"] * np.random.normal(veh_scale_factor, 0.3, size=len(station_veh_list)))
-            .round()
-            .astype(int)
-        )
-        dev = abs(desired_veh_per_station.sum() - vehicle_scenario)
-        trial_counter += 1
-    if trial_counter >= max_trials:
-        warnings.warn("Could not find a suitable vehicle number distribution in feasible time")
-    # save the result in a new column
-    station_veh_list["nr_veh_desired"] = desired_veh_per_station
+        # Simulate a new distribution of vehicles over station by scaling the current number by veh_scale_factor
+        max_trials = 100
+        max_dev = 0.005 * vehicle_scenario
+        dev, trial_counter = np.inf, 0
+        while trial_counter < max_trials and dev > max_dev:
+            desired_veh_per_station = (
+                (station_veh_list["nr_veh"] * np.random.normal(veh_scale_factor, 0.3, size=len(station_veh_list)))
+                .round()
+                .astype(int)
+            )
+            dev = abs(desired_veh_per_station.sum() - vehicle_scenario)
+            trial_counter += 1
+        if trial_counter >= max_trials:
+            warnings.warn("Could not find a suitable vehicle number distribution in feasible time")
+        # save the result in a new column
+        station_veh_list["nr_veh_desired"] = desired_veh_per_station
 
     # get possible vehicle IDs to fill the gaps
     possible_veh_ids = pd.read_csv(os.path.join(in_path, "vehicle.csv"))["vehicle_no"]
@@ -122,11 +144,93 @@ def station_scenario(
 
     # test again
     uni_vals = get_veh_list_from_df(station_veh_list["vehicle_list"].values)
-    assert len(uni_vals) == desired_veh_per_station.sum()
+    assert len(uni_vals) == station_veh_list["nr_veh_desired"].sum()
 
     print(f"Final scenario has {len(station_veh_list)} stations and {len(uni_vals)} vehicles")
 
     return station_veh_list[["vehicle_list", "geom"]]
+
+
+def station_placement_kmeans(X, k, fixed_stations, plot=False):
+    x_df = pd.DataFrame(X)
+    diff = 1
+    cluster = np.zeros(X.shape[0])
+    is_not_fixed = np.ones(X.shape[0])
+    centroids_not_fixed = x_df.sample(n=k).values
+    fixed_centroid_nr = len(fixed_stations)
+    while diff:
+        centroids = np.concatenate((fixed_stations, centroids_not_fixed), axis=0)
+        # for each observation
+        tic = time.time()
+        for i, row in enumerate(X):
+            dists = np.sum((centroids - row) ** 2, axis=1)
+            cluster[i] = np.argmin(dists)
+            is_not_fixed[i] = cluster[i] >= fixed_centroid_nr
+        print("time one iteration of Kmeans:", time.time() - tic)
+
+        fixed_indicator = is_not_fixed.astype(bool)
+        new_centroids = x_df[fixed_indicator].groupby(by=cluster[fixed_indicator]).mean().values
+
+        if len(new_centroids) < len(centroids_not_fixed):
+            # if some centroids got lost (no population assigned), reinitialize
+            init_new = x_df.sample(n = len(centroids_not_fixed) - len(new_centroids)).values
+            new_centroids = np.concatenate((new_centroids, init_new), axis=0)
+            print("reinitialize stations", len(init_new))
+
+        # if centroids are same then leave
+        if np.count_nonzero(centroids_not_fixed - new_centroids) == 0:
+            diff = 0
+            new_centroids_median = (
+                x_df[fixed_indicator].groupby(by=cluster[fixed_indicator]).median().values
+            )  # changed to median
+            centroids = np.concatenate((fixed_stations, new_centroids_median), axis=0)
+        else:
+            centroids_not_fixed = new_centroids
+
+        if plot:
+            place_new_stations(X, centroids, fixed_stations, save_path=None)
+
+    return centroids, cluster
+
+
+def plot_new_stations(living_locs, centroids, previous_stations, save_path="../paper_2/new_station_placement.pdf"):
+    plt.figure(figsize=(15, 8))
+    plt.scatter(living_locs[:, 0], living_locs[:, 1], label="population")
+    plt.scatter(centroids[:, 0], centroids[:, 1], label="new stations", c="yellow")
+    plt.scatter(previous_stations[:, 0], previous_stations[:, 1], label="original stations")
+    plt.axis("off")
+    plt.legend()
+    if save_path is not None:
+        plt.savefig(save_path)
+    else:
+        plt.show()
+
+
+def place_new_stations(
+    nr_new_stations,
+    station_locations,
+    population_path="../external_repos/ch-zh-synpop/cache/data.statpop.statpop__a67ca3bad3e0f3eb24d038ead1b8d467.p",
+    subsample_population=500000,
+):
+    # load population data
+    with open(population_path, "rb") as infile:
+        statpop = pickle.load(infile)
+    living_locs = np.array(statpop[["home_x", "home_y"]])  # locations of population
+    statpop = None
+
+    subsampled_population = living_locs[np.random.permutation(len(living_locs))[:subsample_population]]
+
+    centroids, _ = station_placement_kmeans(subsampled_population, nr_new_stations, station_locations, plot=False)
+
+    plot_new_stations(subsampled_population, centroids, station_locations)
+
+    # assert that the fixed stations remain the same
+    assert np.all(centroids[: len(station_locations)] == station_locations)
+    # make GDF of new stations
+    new_stations_gdf = gpd.GeoDataFrame(
+        geometry=gpd.points_from_xy(x=centroids[len(station_locations) :, 0], y=centroids[len(station_locations) :, 1])
+    )
+    return new_stations_gdf
 
 
 def max_ever_scenario(in_path, out_path=os.path.join("csv", "station_scenario")):

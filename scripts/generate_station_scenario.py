@@ -8,7 +8,7 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--in_path", type=str, default="data")
     parser.add_argument("-o", "--out_path", type=str, default="csv/station_scenario")
     parser.add_argument("-v", "--vehicle_scenario", type=int, default=5000)
-    parser.add_argument("-s", "--station_scenario", default="all_stations")
+    parser.add_argument("-s", "--station_scenario", default="all")
     parser.add_argument("-d", "--sim_date", default="2020-01-01 00:00:00")
     args = parser.parse_args()
 
@@ -27,3 +27,15 @@ if __name__ == "__main__":
         station_veh_scenario, os.path.join(out_path, f"scenario_{args.station_scenario}_{args.vehicle_scenario}.csv")
     )
 
+    # #### Test generation of staions ####
+    # # load station scenario, convert to geodataframe and extract the x and y coordinates
+    # current_stations = pd.read_csv("csv/station_scenario/scenario_all_3500.csv")
+    # current_stations["geom"] = current_stations["geom"].apply(wkt.loads)
+    # current_stations = gpd.GeoDataFrame(current_stations, geometry="geom")
+    # current_stations["x"] = current_stations["geom"].x
+    # current_stations["y"] = current_stations["geom"].y
+    # station_locations = np.array(current_stations[["x", "y"]])  # locations of stations
+    # new_stations_gdf = place_new_stations(500, station_locations, subsample_population=100000)
+    # from shapely import wkt
+    # new_stations_gdf["geometry"] = new_stations_gdf["geometry"].apply(wkt.dumps)
+    # new_stations_gdf.to_csv("csv/station_scenario/new_stations_500.csv")

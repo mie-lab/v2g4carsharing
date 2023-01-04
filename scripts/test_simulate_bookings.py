@@ -88,6 +88,8 @@ if __name__ == "__main__":
     acts_gdf[["person_id", "activity_index", "mode"]].to_csv(os.path.join(out_path, "sim_modes.csv"), index=False)
 
     # compare dist
+    acts_gdf["start_station_no"] = acts_gdf["closest_station_origin"]
+    acts_gdf["end_station_no"] = acts_gdf["closest_station_destination"]
     sim_reservations = derive_reservations(acts_gdf)
 
     # Save reservations

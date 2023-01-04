@@ -209,7 +209,7 @@ def plot_new_stations(living_locs, centroids, previous_stations, save_path="../p
 def place_new_stations(
     nr_new_stations,
     station_locations,
-    population_path="../external_repos/ch-zh-synpop/cache/data.statpop.statpop__a67ca3bad3e0f3eb24d038ead1b8d467.p",
+    population_path="../external_repos/ch-zh-synpop/whole_population/data.statpop.statpop__a67ca3bad3e0f3eb24d038ead1b8d467.p",
     subsample_population=500000,
 ):
     # load population data

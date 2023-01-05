@@ -16,7 +16,8 @@ base_year_prevalence = 2019
 scenario_path_mapping = {
     "current": "../csv/station_scenario/scenario_current_3000.csv",
     "all": "../csv/station_scenario/scenario_all_3500.csv",
-    "new1000": "../csv/station_scenario/scenario_new1000_7500.csv"
+    "new1000": "../csv/station_scenario/scenario_new1000_7500.csv",
+    "new1250": "../csv/station_scenario/scenario_new1250_7500.csv"
 }
 
 def configure(context):

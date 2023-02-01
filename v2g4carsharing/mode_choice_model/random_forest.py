@@ -6,7 +6,6 @@ from sklearn.ensemble import RandomForestClassifier
 import xgboost as xgb
 from sklearn.metrics import balanced_accuracy_score
 from sklearn.linear_model import SGDClassifier
-from v2g4carsharing.mode_choice_model.evaluate import plot_confusion_matrix
 
 
 def rf_tuning(X_train, X_test, y_train, y_test, max_depth=None, plot_confusion=False, out_path=None):
@@ -18,6 +17,7 @@ def rf_tuning(X_train, X_test, y_train, y_test, max_depth=None, plot_confusion=F
     car_sharing_acc = sum(car_sharing_pred == "Mode::CarsharingMobility") / len(car_sharing_pred)
     print(f"Max depth {max_depth} bal accuracy {acc} car sharing sensitivity {car_sharing_acc}")
     if plot_confusion:
+        from v2g4carsharing.mode_choice_model.evaluate import plot_confusion_matrix
         plot_confusion_matrix(y_pred, y_test, traintest="TEST", out_path=out_path)
     return car_sharing_acc
 

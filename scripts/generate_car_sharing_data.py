@@ -3,8 +3,6 @@ import os
 import pickle
 import argparse
 import pandas as pd
-from v2g4carsharing.mode_choice_model.random_forest import RandomForestWrapper
-from v2g4carsharing.mode_choice_model.irl_wrapper import IRLWrapper
 from v2g4carsharing.mode_choice_model.features import compute_dist_to_station
 from v2g4carsharing.simulate.car_sharing_patterns import (
     load_trips,
@@ -66,6 +64,8 @@ if __name__ == "__main__":
         with open(args.model_path, "rb") as infile:
             mode_choice_model = pickle.load(infile)
     elif args.model_type == "irl":
+        # need to install torch for this part
+        from v2g4carsharing.mode_choice_model.irl_wrapper import IRLWrapper
         mode_choice_model = IRLWrapper(model_path=args.model_path)
     else:
         raise NotImplementedError("model type must be one of irl or rf")

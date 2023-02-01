@@ -6,8 +6,6 @@ import json
 import trackintel as ti
 import geopandas as gpd
 from shapely import wkt
-from meteostat import Hourly, Daily
-from meteostat import Point as MeteoPoint
 from datetime import timedelta
 
 from v2g4carsharing.simulate.car_sharing_patterns import load_trips
@@ -105,6 +103,9 @@ class ModeChoiceFeatures:
                 self.trips["feat_prev_" + mode_col] = 0
 
     def add_weather(self):
+        # import of meteostat here in order to remove the requirement
+        from meteostat import Hourly, Daily
+        from meteostat import Point as MeteoPoint
         def get_daily_weather(row):
             loc = MeteoPoint(row["geom_destination"].y, row["geom_destination"].x)
             end = row["started_at_destination"].replace(tzinfo=None)

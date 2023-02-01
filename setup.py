@@ -20,7 +20,7 @@ setup(
     author_email=("nwiedemann@ethz.ch"),
     license="GPLv3",
     url="https://github.com/mie-lab/v2g4carsharing/",
-    install_requires=["numpy", "scipy", "pandas", "geopandas", "shapely"],
+    install_requires=["numpy", "scipy", "pandas", "geopandas", "shapely", "matplotlib", "trackintel"],
     classifiers=[
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Intended Audience :: Science/Research",

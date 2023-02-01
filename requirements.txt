@@ -1,5 +1,0 @@
-geopandas
-shapely
-matplotlib
-trackintel
-xgboost==1.6.2

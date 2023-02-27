@@ -9,6 +9,8 @@ plt.style.use("seaborn")
 import scipy
 import seaborn as sns
 
+sns.set(font_scale=1.4)
+
 
 def compare_nr_reservations(res_real, res_sim, out_path=None):
     res_per_day = res_real.reset_index().groupby("start_date").agg({"reservation_no": "count"})
@@ -18,11 +20,12 @@ def compare_nr_reservations(res_real, res_sim, out_path=None):
     print("z value of nr of reservations: ", z_value_res)
 
     # plot histogram and simulated value
-    plt.figure(figsize=(10, 4))
-    vals, _, fig = plt.hist(res_per_day["reservation_no"], label="Mobility dataset (per day)")
+    plt.figure(figsize=(7, 4))
+    vals, _, fig = plt.hist(res_per_day["reservation_no"], label="Mobility dataset\n(per day)")
     plt.plot([len(res_sim), len(res_sim)], [0, np.max(vals)], label="Simulated day", lw=3)
-    plt.legend(fontsize=18)
-    plt.title("Number of reservations (z={:.2f})".format(z_value_res), fontsize=18)
+    # plt.title("Number of reservations (z={:.2f})".format(z_value_res), fontsize=18)
+    plt.xlabel("Number of reservations (per day)")
+    plt.legend(loc="upper left")
     plt.tight_layout()
     if out_path is not None:
         plt.savefig(os.path.join(out_path, "nr_reservations.png"))
@@ -60,6 +63,8 @@ def compare_user_dist(res_real, res_sim, out_path=None):
 name_mapping = {
     "reservationfrom_sec": "Reservation start time (h)",
     "reservationto_sec": "Reservation end time (h)",
+    "reservationfrom": "Reservation start time (h)",
+    "reservationto": "Reservation end time (h)",
     "drive_km": "Distance (km)",
     "duration": "Duration (h)",
     "station": "Reservation count per station",
@@ -88,11 +93,12 @@ def compare_hist_dist(res_real, res_sim, col_name, out_path=None):
         plt.xticks(fontsize=20)
         plt.xlabel(name_mapping.get(col_name, col_name), fontsize=20)
         plt.title(names[i], fontsize=20)
+        plt.yticks(fontsize=20)
         if col_name == "duration":
             plt.xlim(0, 24)
     plt.tight_layout()
     if out_path is not None:
-        plt.savefig(os.path.join(out_path, "distribution_" + col_name + ".png"))
+        plt.savefig(os.path.join(out_path, "distribution_" + col_name + ".pdf"))
     else:
         plt.show()
     print(
@@ -149,10 +155,10 @@ def compare_station_dist(res_real, res_sim, out_path=None):
     print("Average z score", np.mean(np.abs(stations_compare["z_score"])))
 
     # plot histogram
-    plt.figure()
-    plt.hist(stations_compare["z_score"], bins=30, label="Station-wise\nz-score distribution")
-    plt.xticks(fontsize=18)
-    plt.legend(fontsize=18)
+    plt.figure(figsize=(5, 4))
+    plt.hist(stations_compare["z_score"], bins=30, label="Station-wise\nz-score\ndistribution")
+    plt.xlim(-5, 7)
+    plt.legend()
     plt.tight_layout()
     if out_path is not None:
         plt.savefig(os.path.join(out_path, "distribution_station_zscore.png"))

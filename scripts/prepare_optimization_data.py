@@ -2,6 +2,7 @@ import os
 import argparse
 import warnings
 from datetime import timedelta
+import pandas as pd
 
 warnings.filterwarnings(action="ignore")
 
@@ -12,7 +13,7 @@ from v2g4carsharing.optimization_data.utils import (
     BASE_DATE,
     FINAL_DATE,
 )
-from v2g4carsharing.optimization_data.compute_soc import get_matrices
+from v2g4carsharing.optimization_data.compute_soc import get_discrete_matrix
 
 
 if __name__ == "__main__":
@@ -47,18 +48,20 @@ if __name__ == "__main__":
         index_to_ts(index, time_granularity=time_granularity, base_date=BASE_DATE) for index in range(overall_slots)
     ]
 
-    # Run
-    (station_matrix, reservation_matrix, required_soc) = get_matrices(
+    ev_reservation.to_csv(os.path.join(out_path, "ev_reservation_cleaned.csv"))
+    print("Saved reservations")
+
+    matrix = get_discrete_matrix(
         ev_reservation, columns, overall_slots, time_granularity
     )
+    matrix.to_csv(os.path.join(out_path,  "discrete.csv"))
+    # # Run
+    # (station_matrix, reservation_matrix, required_soc) = get_matrices(
+    #     ev_reservation, columns, overall_slots, time_granularity
+    # )
 
-    # Save
-    for matrix, name in zip(
-        [station_matrix, required_soc, reservation_matrix], ["station_matrix", "soc_matrix", "reservation_matrix"]
-    ):
-        matrix.to_csv(os.path.join(out_path, f"{name}.csv"))
-    # save ev specifications (models also for simulated EVs)
-    ev_specs = ev_reservation.groupby("vehicle_no").agg(
-        {key: "first" for key in ["model_name", "brand_name", "charge_power", "battery_capacity", "range"]}
-    )
-    ev_specs.to_csv(os.path.join(out_path, "ev_specifications.csv"), index=True)
+    # # save ev specifications (models also for simulated EVs)
+    # ev_specs = ev_reservation.groupby("vehicle_no").agg(
+    #     {key: "first" for key in ["model_name", "brand_name", "charge_power", "battery_capacity", "range"]}
+    # )
+    # ev_specs.to_csv(os.path.join(out_path, "ev_specifications.csv"), index=True)

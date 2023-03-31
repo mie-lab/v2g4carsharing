@@ -51,6 +51,15 @@ def get_matrices_per_vehicle(
         start_booking_index = ts_to_index(
             start_time, time_granularity=time_granularity
         )
+        if start_booking_index >= overall_slots:
+            print(
+                "PROBLEM - booking out of time frame (skip)",
+                start_booking_index,
+                overall_slots,
+                res_no,
+                start_time,
+            )
+            continue
         end_booking_index = ts_to_index(
             end_time, time_granularity=time_granularity
         )
@@ -120,3 +129,25 @@ def get_matrices(ev_reservation, columns, overall_slots, time_granularity):
         columns=columns
     )
     return station_matrix, reservation_matrix, required_soc_matrix
+
+
+def get_discrete_matrix(
+    ev_reservation, columns, overall_slots, time_granularity
+):
+    # run main algorithm
+    output_matrices = ev_reservation.groupby("vehicle_no").apply(
+        lambda x: get_matrices_per_vehicle(x, overall_slots, time_granularity)
+    )
+    index = output_matrices.index
+
+    res_arr = np.array([e[1] for e in output_matrices])
+    station_arr = np.array([e[0] for e in output_matrices])
+    soc_arr = np.array([e[2] for e in output_matrices])
+
+    # replace the entries with a reservation
+    station_arr[res_arr > 0] = res_arr[res_arr > 0]
+    # add SOC
+    station_arr[soc_arr > 0] = soc_arr[soc_arr > 0]
+
+    final_df = pd.DataFrame(station_arr, columns=columns, index=index)
+    return final_df

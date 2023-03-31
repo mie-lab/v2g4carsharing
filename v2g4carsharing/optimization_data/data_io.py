@@ -196,18 +196,26 @@ def load_ev_data(
             reservation, relocation = load_data_postgis(
                 path_credentials=path_credentials, filter_ev=filter_ev
             )
+        reservation = reservation.reset_index()
     # load, merge and filter data
     ev_reservation = simulate_filter_evs(reservation, sim_ev_mode=sim_ev_mode)
 
     # preprocess bookings
-    ev_reservation = clean_reservations(ev_reservation)
+    print("initial number of reservations")
+    ev_reservation = clean_reservations(ev_reservation, relocation)
+    print("number of reservations after cleanup")
 
     # preprocess relocations - restrict v2b to the relevant vehicles
-    unique_veh_ids = ev_reservation["vehicle_no"].unique()
-    relocation = relocation[relocation["vehicle_no"].isin(unique_veh_ids)]
-    print("number of relocations", len(relocation))
-    # append to reservations
-    ev_reservation = pd.concat((ev_reservation, relocation))
+    unique_veh_ids = ev_reservation.loc[
+        ~pd.isna(ev_reservation["battery_capacity"]), "vehicle_no"
+    ].unique()
+    ev_reservation = ev_reservation[
+        ev_reservation["vehicle_no"].isin(unique_veh_ids)
+    ]
+    print(
+        "number of reservations after removing relocations of other vehicles",
+        len(ev_reservation)
+    )
 
     return ev_reservation
 
@@ -220,3 +228,21 @@ def save_matrix(
     )
     station_df.index.name = "vehicle_no"
     station_df.to_csv(os.path.join(out_path, f"{name}.csv"))
+
+def combine_matrices(
+    res_matrix, soc_matrix, station_matrix, out_path="outputs"
+):
+    res_arr = np.array(res_matrix)[:, 1:]
+    station_arr = np.array(station_matrix)[:, 1:]
+    soc_arr = np.array(soc_matrix)[:, 1:]
+    # replace the entries with a reservation
+    station_arr[res_arr>0] = res_arr[res_arr>0]
+    # add SOC
+    station_arr[soc_arr>0] = soc_arr[soc_arr>0]
+
+    final_df = pd.DataFrame(
+        station_arr,
+        columns=station_matrix.columns[1:],
+        index=station_matrix["vehicle_no"]
+    )
+    final_df.to_csv(os.path.join(out_path, "booking_matrix.csv"))

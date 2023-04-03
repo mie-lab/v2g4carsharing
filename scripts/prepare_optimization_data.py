@@ -13,7 +13,9 @@ from v2g4carsharing.optimization_data.utils import (
     BASE_DATE,
     FINAL_DATE,
 )
-from v2g4carsharing.optimization_data.compute_soc import get_discrete_matrix
+from v2g4carsharing.optimization_data.compute_soc import (
+    get_discrete_matrix, save_required_soc
+)
 
 
 if __name__ == "__main__":
@@ -50,6 +52,14 @@ if __name__ == "__main__":
 
     ev_reservation.to_csv(os.path.join(out_path, "ev_reservation_cleaned.csv"))
     print("Saved reservations")
+
+    save_required_soc(ev_reservation, out_path)
+    # # loading from csv in case of bugs:
+    # ev_reservation = pd.read_csv(
+    #     os.path.join(out_path, "ev_reservation_cleaned.csv")
+    # ).set_index("reservation_no")
+    # ev_reservation["start_time"] = pd.to_datetime(ev_reservation["start_time"])
+    # ev_reservation["end_time"] = pd.to_datetime(ev_reservation["end_time"])
 
     matrix = get_discrete_matrix(
         ev_reservation, columns, overall_slots, time_granularity

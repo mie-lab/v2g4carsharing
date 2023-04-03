@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 
@@ -10,6 +11,7 @@ def get_matrices_per_vehicle(
 ):
     """
     Main function to produce station and SOC matrices
+    Iterates through bookings in reverse order
     Takes a list of reservations as input, as well as ev specifications
     Outputs discrete charging times and states at granularity time_granularity
 
@@ -72,7 +74,7 @@ def get_matrices_per_vehicle(
             "reservationtype"] != "Servicereservation":
             print(
                 "Warning: start and end at same time slot - res_no left out",
-                res_no
+                res_no, start_time, end_time, start_booking_index
             )
 
         # assert next station is equal to station at end of current trip
@@ -131,23 +133,105 @@ def get_matrices(ev_reservation, columns, overall_slots, time_granularity):
     return station_matrix, reservation_matrix, required_soc_matrix
 
 
+def get_discrete_per_vehicle(
+    vehicle_df, overall_slots, time_granularity, *args
+):
+    """
+    New version of the function to generate a discrete matrix from the bookings
+    """
+    # sort
+    vehicle_df = vehicle_df.sort_values(["start_time", "end_time"])
+
+    # init outputs
+    station_matrix = np.zeros(overall_slots)
+
+    # aux variables
+    prev_booking_index = 0  # prev booking index is the slot where the
+    # previous booking has already ended --> not ongoing anymore
+    prev_station = vehicle_df.iloc[0]["start_station_no"]
+
+    for res_no, row in vehicle_df.iterrows():
+        start_time = row["start_time"]
+        end_time = row["end_time"]
+        start_station = row["start_station_no"]
+        end_station = row["end_station_no"]
+
+        # get start and end booking indices
+        # next_booking_index = ts_to_index(
+        #     next_booking_time, time_granularity=time_granularity
+        # )
+        start_booking_index = ts_to_index(
+            start_time, time_granularity=time_granularity
+        )
+        if start_booking_index >= overall_slots:
+            print("PROBLEM - booking out of time frame (skip)", res_no)
+            continue
+        end_booking_index = ts_to_index(
+            end_time, time_granularity=time_granularity
+        )
+        # ensure that end is in range
+        end_booking_index = min([end_booking_index, overall_slots-1])
+
+        # assert start <= end
+        assert (
+            start_booking_index <= end_booking_index
+        ), f"start > end for res no {row}"
+        # start and end at same timeslot --> does not play a role anymore, the
+        # reservation appears anyways
+
+        # assert next station is equal to station at end of current trip
+        if prev_station != start_station:
+            print(
+                f"Station mismatch for res no {res_no}, veh {row['vehicle_no']}"
+            )
+
+        # check whether we have a slot overlap -> start of current booking is
+        # at the same slot or before the previous booking ended
+        if start_booking_index < prev_booking_index:
+            # adjust the start such that it starts later
+            start_booking_index = prev_booking_index
+            # check whether this shifting has lead to a 0-length reservation
+            if end_booking_index < start_booking_index:
+                end_booking_index = start_booking_index
+
+        # fill matrices
+        station_matrix[prev_booking_index:start_booking_index] = prev_station
+        station_matrix[start_booking_index:end_booking_index + 1] = res_no
+
+        # update prev booking time and station
+        prev_booking_index = end_booking_index + 1
+        prev_station = end_station
+
+    # fill the station assignment until the end
+    station_matrix[prev_booking_index:] = prev_station
+    return pd.Series(station_matrix)
+
+
 def get_discrete_matrix(
     ev_reservation, columns, overall_slots, time_granularity
 ):
+    # for testing: use subset
+    # test_reservation = ev_reservation[
+    #   ev_reservation["vehicle_no"].isin([106516, 106517, 106518])
+    # ]
     # run main algorithm
-    output_matrices = ev_reservation.groupby("vehicle_no").apply(
-        lambda x: get_matrices_per_vehicle(x, overall_slots, time_granularity)
+    output_matrix = ev_reservation.groupby("vehicle_no").apply(
+        lambda x: get_discrete_per_vehicle(x, overall_slots, time_granularity)
     )
-    index = output_matrices.index
+    output_matrix.columns = columns
+    return output_matrix
 
-    res_arr = np.array([e[1] for e in output_matrices])
-    station_arr = np.array([e[0] for e in output_matrices])
-    soc_arr = np.array([e[2] for e in output_matrices])
 
-    # replace the entries with a reservation
-    station_arr[res_arr > 0] = res_arr[res_arr > 0]
-    # add SOC
-    station_arr[soc_arr > 0] = soc_arr[soc_arr > 0]
+def save_required_soc(ev_reservation, out_path):
+    # remove the service reservations
+    res = ev_reservation.dropna(subset=["battery_capacity"])
+    res["consumption_per_km"] = res["battery_capacity"] / res["range"]
+    # get required battery capacity
+    res["required_soc"] = res["consumption_per_km"] * res["drive_km"]
+    # take min of capacity and required
+    res["required_soc"] = res[["required_soc", "battery_capacity"]].min(axis=1)
+    # get the SOC in percent
+    res["required_soc"] = res["required_soc"] / res["battery_capacity"]
 
-    final_df = pd.DataFrame(station_arr, columns=columns, index=index)
-    return final_df
+    soc_table = res[["reservation_no", "required_soc"]]
+    soc_table.to_csv(os.path.join(out_path, "required_soc.csv"))

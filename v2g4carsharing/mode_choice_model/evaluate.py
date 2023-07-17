@@ -10,8 +10,8 @@ def plot_confusion_matrix(
     pred, labels_max_str, traintest="TRAIN", out_path=os.path.join("outputs", "mode_choice_model")
 ):
     print("----- ", traintest, "results")
-    print("Acc:", accuracy_score(pred, labels_max_str))
-    print("Balanced Acc:", balanced_accuracy_score(pred, labels_max_str))
+    print("Acc:", accuracy_score(labels_max_str, pred))
+    print("Balanced Acc:", balanced_accuracy_score(labels_max_str, pred))
     for confusion_mode in [None, "true", "pred"]:
         name = "" if confusion_mode is None else confusion_mode
         fig, ax = plt.subplots(1, 1, figsize=(10, 10))

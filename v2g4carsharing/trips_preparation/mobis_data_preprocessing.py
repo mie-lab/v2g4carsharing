@@ -77,18 +77,23 @@ def clean_acts(acts_of_carsharing_users):
     return acts_of_carsharing_users
 
 
-def tracking_data_carsharing_users(inp_path_mobis, out_path):
+def tracking_data_carsharing_users(inp_path_mobis, out_path, reduce_to_carsharing=True):
     print("------ Loading Legs ---------")
     legs = pd.read_csv(os.path.join(inp_path_mobis, "tracking", "legs.csv"), index_col="leg_id")
     print("Preprocessing legs...")
-    # car sharing legs
-    car_sharing_legs = legs[legs["mode"] == "Mode::CarsharingMobility"]
-    car_sharing_users = car_sharing_legs["participant_id"].unique()
+    if reduce_to_carsharing:
+        # car sharing legs
+        car_sharing_legs = legs[legs["mode"] == "Mode::CarsharingMobility"]
+        car_sharing_users = car_sharing_legs["participant_id"].unique()
 
-    # legs of car sharing users
-    legs_of_carsharing_users = legs[legs["participant_id"].isin(car_sharing_users)]
-    print("ratio car sharing users", len(legs_of_carsharing_users) / len(legs))
-    print("number car sharing user legs", len(legs_of_carsharing_users))
+        # legs of car sharing users
+        legs_of_carsharing_users = legs[legs["participant_id"].isin(car_sharing_users)]
+        print("ratio car sharing users", len(legs_of_carsharing_users) / len(legs))
+        print("number car sharing user legs", len(legs_of_carsharing_users))
+        print(len(legs))
+    else:
+        legs_of_carsharing_users = legs[legs["started_at"]>'2022-06-01 00:00:00']
+    print("After filtering", len(legs_of_carsharing_users), "max time", legs_of_carsharing_users["started_at"].max())
 
     # clean: in switzerland and plausible
     legs_model = clean_legs(legs_of_carsharing_users)
@@ -107,7 +112,10 @@ def tracking_data_carsharing_users(inp_path_mobis, out_path):
     print("--------- Activities ----------")
     acts = pd.read_csv(os.path.join(inp_path_mobis, "tracking", "activities.csv"))
     # car sharing users
-    acts_of_carsharing_users = acts[acts["participant_id"].isin(car_sharing_users)]
+    if reduce_to_carsharing:
+        acts_of_carsharing_users = acts[acts["participant_id"].isin(car_sharing_users)]
+    else:
+        acts_of_carsharing_users = acts[acts["started_at"]>'2022-06-01 00:00:00']
     print("ratio car sharing users", len(acts_of_carsharing_users) / len(acts))
     print("number car sharing user legs", len(acts_of_carsharing_users))
     # clean
@@ -131,19 +139,19 @@ def preprocess_trackintel(inp_path):
     sp, legs, trips = ti.preprocessing.triplegs.generate_trips(act_sp, legs, gap_threshold=15, add_geometry=True)
     print(sp.crs, legs.crs, trips.crs)
     trips.crs = sp.crs
-    # locations
-    sp, locs = ti.preprocessing.staypoints.generate_locations(sp, method="dbscan", epsilon=20, num_samples=1)
-    print(sp.crs, locs.crs)
-    locs.crs = sp.crs
-    # tours
-    trips, tours = ti.preprocessing.trips.generate_tours(trips, max_time="1d", max_nr_gaps=1, print_progress=True)
+    # # locations # --> locations and tours are not needed for later steps
+    # sp, locs = ti.preprocessing.staypoints.generate_locations(sp, method="dbscan", epsilon=20, num_samples=1)
+    # print(sp.crs, locs.crs)
+    # locs.crs = sp.crs
+    # # tours
+    # trips, tours = ti.preprocessing.trips.generate_tours(trips, max_time="1d", max_nr_gaps=1, print_progress=True)
 
     # save
     ti.io.file.write_staypoints_csv(sp, os.path.join(inp_path, "staypoints.csv"))
     ti.io.file.write_triplegs_csv(legs, os.path.join(inp_path, "triplegs.csv"))
     ti.io.file.write_trips_csv(trips, os.path.join(inp_path, "trips.csv"))
-    ti.io.file.write_locations_csv(locs, os.path.join(inp_path, "locations.csv"))
-    ti.io.file.write_tours_csv(tours, os.path.join(inp_path, "tours.csv"))
+    # ti.io.file.write_locations_csv(locs, os.path.join(inp_path, "locations.csv"))
+    # ti.io.file.write_tours_csv(tours, os.path.join(inp_path, "tours.csv"))
 
 
 class MobisTripPreprocessor:
@@ -194,6 +202,7 @@ class MobisTripPreprocessor:
             ],
             axis=1,
             inplace=True,
+            errors="ignore"
         )
         # rename columns for clearness
         self.trips.rename(columns={"user_id": "person_id", "purpose": "purpose_origin"}, inplace=True)
@@ -207,10 +216,14 @@ class MobisTripPreprocessor:
         survey_features=["p_birthdate", "p_sex", "p_caraccess", "p_ptmobtool_ht", "p_ptmobtool_ga", "p_occup_employed"],
     ):
         print("Adding survey features...")
-        car_sharing_users = self.trips["person_id"].unique()
         # add survey data
         survey = pd.read_csv(survey_path).set_index(["participant_id"])
+        # filter for the once that are in the survey
+        print(len(self.trips))
+        self.trips = self.trips[self.trips["person_id"].isin(survey.index)]
+        print("Number of trips after filtering out the ones not in the survey", len(self.trips))
         # get car sharing users
+        car_sharing_users = self.trips["person_id"].unique()
         survey_car_sharing_users = (survey.loc[car_sharing_users])[survey_features]
         # show all columns --> could keep p_language for example etc
         # list(survey_car_sharing_users.columns)

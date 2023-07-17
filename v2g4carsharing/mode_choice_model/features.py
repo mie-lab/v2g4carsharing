@@ -38,13 +38,13 @@ def compute_dist_to_station(trips, station):
 
 
 class ModeChoiceFeatures:
-    def __init__(self, path="../data/mobis"):
+    def __init__(self, path="../data/mobis", config_path="config.json"):
         self.path = path
         self.trips = load_trips(os.path.join(path, "trips_enriched.csv"))
         # check if labels are available, if yes, preprocess (restrict dataset to relevant modes)
         mode_columns = [col for col in self.trips.columns if col.startswith("Mode::")]
         self.mode_avail = len(mode_columns) > 0
-        with open("config.json", "r") as infile:
+        with open(config_path, "r") as infile:
             self.included_modes = json.load(infile)["included_modes"]
         # reduce to included modes
         if self.mode_avail:
@@ -67,7 +67,12 @@ class ModeChoiceFeatures:
         self, col_name="purpose_destination", included_purposes=["home", "leisure", "work", "shopping", "education"]
     ):
         included_w_prefix = ["feat_" + col_name + "_" + p for p in included_purposes]
-        one_hot = pd.get_dummies(self.trips[col_name], prefix="feat_" + col_name)[included_w_prefix]
+        one_hot = pd.get_dummies(self.trips[col_name], prefix="feat_" + col_name)
+        avail_included = [col for col in included_w_prefix if col in one_hot.columns]
+        notavail_included = [col for col in included_w_prefix if col not in one_hot.columns]
+        one_hot = one_hot[avail_included]
+        for col in notavail_included:
+            one_hot[col] = 0
         self.trips = self.trips.merge(one_hot, left_index=True, right_index=True)
 
     def add_distance_feature(self):
@@ -78,7 +83,7 @@ class ModeChoiceFeatures:
         start_geom.crs = "EPSG:2056"
         self.trips["feat_distance"] = start_geom.distance(dest_geom)
 
-    def add_pt_accessibility(self, origin_or_destination="origin", pt_path="../data/OeV_Gueteklassen_ARE.gpkg"):
+    def add_pt_accessibility(self, origin_or_destination="origin", pt_path="../../data/OeV_Gueteklassen_ARE.gpkg"):
         pt_accessibility = gpd.read_file(pt_path)
         self.trips = gpd.GeoDataFrame(self.trips, geometry="geom_" + origin_or_destination)
         self.trips = self.trips.sjoin(pt_accessibility, how="left")
@@ -155,7 +160,7 @@ class ModeChoiceFeatures:
             lambda x: x.dayofweek if ~pd.isna(x) else print(x)
         )
 
-    def add_all_features(self):
+    def add_all_features(self, pt_guete_path="../data/OeV_Gueteklassen_ARE.gpkg"):
         tic = time.time()
         self.add_distance_feature()
         before_distance_0_removal = len(self.trips)
@@ -170,8 +175,8 @@ class ModeChoiceFeatures:
         self.add_purpose_features("purpose_origin")
         print(time.time() - tic, "\nAdd pt accessibility:")
         tic = time.time()
-        self.add_pt_accessibility(origin_or_destination="origin")
-        self.add_pt_accessibility(origin_or_destination="destination")
+        self.add_pt_accessibility(origin_or_destination="origin", pt_path=pt_guete_path)
+        self.add_pt_accessibility(origin_or_destination="destination", pt_path=pt_guete_path)
         print(time.time() - tic, "\nAdd dist2station:")
         tic = time.time()
         self.add_dist2station()

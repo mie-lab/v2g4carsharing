@@ -21,7 +21,19 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def fit_random_forest(trips_mobis, out_path=os.path.join("outputs", "mode_choice_model"), model_save_name="rf_sim"):
 
     # prepare data
-    drop_columns = [col for col in trips_mobis.columns if col.startswith("feat_prev_Mode")]  # ["feat_caraccess"]
+    drop_columns = [col for col in trips_mobis.columns if col.startswith("feat_prev_Mode") or col in [
+        # Version 2: without swiss-specific: 'feat_halbtax', 'feat_ga',
+
+        # VERSION 3: without any specific
+        #    'feat_age', 'feat_sex', 'feat_caraccess', 'feat_employed',
+        #    'feat_purpose_destination_home',
+        #    'feat_purpose_destination_leisure', 'feat_purpose_destination_work',
+        #    'feat_purpose_destination_shopping',
+        #    'feat_purpose_destination_education', 'feat_purpose_origin_home',
+        #    'feat_purpose_origin_leisure', 'feat_purpose_origin_work',
+        #    'feat_purpose_origin_shopping', 'feat_purpose_origin_education',
+        #    'feat_pt_accessibilityorigin', 'feat_pt_accessibilitydestination',
+    ]]  # ["feat_caraccess"]
     features, labels = prepare_data(trips_mobis, return_normed=False, drop_columns=drop_columns)
     print("fitting on features:", features.columns)
 

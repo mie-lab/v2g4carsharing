@@ -43,20 +43,29 @@ if __name__ == "__main__":
 
     # histogram of number of reservations and unique users
     compare_nr_reservations(res_real, res_sim, out_path=out_path)
-    compare_user_dist(res_real, res_sim, out_path=out_path)
 
     # duration, start and end distributions
     for var in ["duration", "reservationfrom", "reservationto", "drive_km"]:
         if "test" in out_path and var not in ["reservationfrom"]:
             # start and end times do not make sense without
             continue
-        compare_hist_dist(res_real, res_sim, var, out_path=out_path)
+        compare_hist_dist(res_real, res_sim, var, out_path=out_path) 
+        # # To show plot with a comparison of all three, add kw argument:
+        # res_sim2=pd.read_csv("outputs/simulated_car_sharing/xgb_2019_final/sim_reservations.csv", index_col="reservation_no")
 
     # station distribution for a single real day
     # compare_station_dist_one_day(res_sim, in_path_real, out_path)
 
     # station z values compared to all other days
     compare_station_dist(res_real, res_sim, out_path=out_path)
+
+    if ~os.path.exists(os.path.join(args.in_path_sim, "sim_modes.csv")):
+        # stop here if we don't have modes simulated (e.g., in event based)
+        f.close()
+        exit()
+        
+    # compare user distribution    
+    compare_user_dist(res_real, res_sim, out_path=out_path)
 
     # Mode share comparison
     # load simulated labels

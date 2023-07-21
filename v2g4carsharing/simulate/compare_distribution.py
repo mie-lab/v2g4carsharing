@@ -71,13 +71,21 @@ name_mapping = {
 }
 
 
-def compare_hist_dist(res_real, res_sim, col_name, out_path=None):
+def compare_hist_dist(res_real, res_sim, col_name, res_sim2=None, out_path=None):
     print("Distribution of ", col_name)
-    names = ["Mobility dataset", "Simulated"]
-    plt.figure(figsize=(10, 4))
+    if res_sim2 is not None:
+        names = ["Mobility dataset", "Event-based simulation", "Agent-based simulation"]
+        res_dfs = [res_real, res_sim, res_sim2]
+        plt.figure(figsize=(14, 4))
+        nr_subplots = 4
+    else:
+        names = ["Mobility dataset", "Simulated data"]
+        res_dfs = [res_real, res_sim]
+        plt.figure(figsize=(10, 4))
+        nr_subplots = 2
     sim_col_update = {}
-    for i, res in enumerate([res_real, res_sim]):
-        plt.subplot(1, 2, i + 1)
+    for i, res in enumerate(res_dfs):
+        plt.subplot(1, nr_subplots, i + 1)
         if col_name == "duration":
             bins = np.arange(24)
         elif col_name == "drive_km":
@@ -88,6 +96,15 @@ def compare_hist_dist(res_real, res_sim, col_name, out_path=None):
             bins = np.arange(0, 85000, 5000)
             plt.xticks([i * 3600 * 2 for i in range(12)], np.arange(0, 24, 2))
         if col_name in ["reservationfrom", "reservationto"] and col_name + "_sec" in res.columns:
+            sim_col_update[col_name] = col_name + "_sec"
+        elif col_name in ["reservationfrom", "reservationto"] and i==1:
+            # need to transform data into secodns for the event based simulator
+            res["reservationfrom"] = pd.to_datetime(res["reservationfrom"])
+            res["reservationto"] = pd.to_datetime(res["reservationto"])
+            res["start_date"] = pd.to_datetime(res["reservationfrom"].dt.date)
+            # change encoding of res_from and res_to to seconds
+            res["reservationfrom_sec"] = (res["reservationfrom"] - res["start_date"]).dt.seconds.values
+            res["reservationto_sec"] = (res["reservationto"] - res["start_date"]).dt.seconds.values
             sim_col_update[col_name] = col_name + "_sec"
         plt.hist(res[sim_col_update.get(col_name, col_name)], bins=bins)
         plt.xticks(fontsize=20)

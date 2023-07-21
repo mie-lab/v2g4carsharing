@@ -164,7 +164,7 @@ if __name__ == "__main__":
 
     # restrict to time period
     reservation = res_raw[(res_raw["reservationfrom"] >= time_start) & (res_raw["reservationto"] <= time_end)]
-    user = user_raw[user_raw["person_no"].isin(reservation["person_no"].unique())]
+    user = user_raw[user_raw.index.isin(reservation["person_no"].unique())]
     station = station[station.index.isin(reservation["start_station_no"].unique())]
 
     # only keep relevant columns of raw data
@@ -206,3 +206,5 @@ if __name__ == "__main__":
         new_month_df = reorder_overlapping_bookings(station_df, nr_veh_at_station)
         realistic_sampled_data.append(new_month_df)
     realistic_sampled_data = pd.concat(realistic_sampled_data)
+
+    realistic_sampled_data.to_csv("outputs/test_sample_py.csv")

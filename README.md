@@ -1,10 +1,18 @@
-# Vehicle-to-grid for car sharing systems
+# Vehicle-to-grid for car sharing
+
+This code was used for two papers, one about the simulating future scenarios for [V2G for car sharing in 2030](https://doi.org/10.1016/j.apenergy.2024.123731), published in Applied Energy, and one about [scheduling a national-scale fleet for ancillary services](https://doi.org/10.1186/s42162-023-00281-4) (Energy Informatics 2023).
+
+We analyze the flexibilities for providing ancillary services in a national-scale car sharing fleet in Switzerland, first for 2019, and then in different scenarios in 2030. For simulating future scenarios, we train a mode choice model and develop an agent-based simulation of car sharing trips. 
+
+The code base is part of a larger research project called V2G4Carsharing. We (the MIE Lab at ETH Zurich) collaborated with [Mobility car sharing](https://www.mobility.ch/en) and [Hive Power](https://www.hivepower.tech/) to analyze the potential of verhicle-to-grid technologies for car sharing. The project was funded by the Swiss Federal Office of Energy.
 
 ## Data preparation for V2G optimization
 
-The first module in this repo is for preprocessing car sharing data for optimizing charging and discharging operations. There are two modules:
+Unfortunately, the dataset used for this study is properiety data. However, the code should be applicable to car sharing data in similar format. If you are interested to run this code, please get in touch.
 
-#### import data
+The code base provides the following functionalities:
+
+#### Data preprocessing
 
 This module has all code for importing the raw car sharing data, for preprocessing, and for writing data to a PostGIS database. To execute these functions, check out the script
 ```
@@ -20,7 +28,7 @@ optional arguments:
                         path to postgis access json file
 ```
 
-#### optimization data
+#### Data preparation for scheduling optimization
 
 This module contains all code to transform the car sharing reservations into suitable input to an optimization algorithm. This includes:
 * Computing the state of charge
@@ -29,7 +37,7 @@ This module contains all code to transform the car sharing reservations into sui
 
 Run the corresponding script:
 ```
-prepare_optimization_data.py [-h] [-i IN_PATH] [-o OUT_PATH] [-s SCENARIO] [-t TIME_GRANULARITY]
+python prepare_optimization_data.py [-h] [-i IN_PATH] [-o OUT_PATH] [-s SCENARIO] [-t TIME_GRANULARITY]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -130,3 +138,50 @@ optional arguments:
   -m MOBIS_DATA_PATH, --mobis_data_path MOBIS_DATA_PATH
                         path to MOBIS data
 ```
+
+## References
+
+If you build up on our work, please cite the corresponding publication:
+
+Wiedemann, N., Xin, Y., Medici, V., Nespoli, L., Suel, E., & Raubal, M. (2024). Vehicle-to-grid for car sharing-A simulation study for 2030. Applied Energy, 372, 123731.
+
+```bib
+@article{wiedemann2024vehicle,
+  title={Vehicle-to-grid for car sharing-A simulation study for 2030},
+  author={Wiedemann, Nina and Xin, Yanan and Medici, Vasco and Nespoli, Lorenzo and Suel, Esra and Raubal, Martin},
+  journal={Applied Energy},
+  volume={372},
+  pages={123731},
+  year={2024},
+  publisher={Elsevier}
+}
+```
+
+Nespoli, L., Wiedemann, N., Suel, E., Xin, Y., Raubal, M., & Medici, V. (2023). National-scale bi-directional EV fleet control for ancillary service provision. Energy Informatics, 6(Suppl 1), 40.
+```bib
+@article{nespoli2023national,
+  title={National-scale bi-directional EV fleet control for ancillary service provision},
+  author={Nespoli, Lorenzo and Wiedemann, Nina and Suel, Esra and Xin, Yanan and Raubal, Martin and Medici, Vasco},
+  journal={Energy Informatics},
+  volume={6},
+  number={Suppl 1},
+  pages={40},
+  year={2023},
+  publisher={Springer}
+}
+```
+
+Suel, E., Xin, Y., Wiedemann, N., Nespoli, L., Medici, V., Danalet, A., & Raubal, M. (2024). Vehicle-to-grid and car sharing: Willingness for flexibility in reservation times in Switzerland. Transportation Research Part D: Transport and Environment, 126, 104014.
+
+```bib
+@article{suel2024vehicle,
+  title={Vehicle-to-grid and car sharing: Willingness for flexibility in reservation times in Switzerland},
+  author={Suel, Esra and Xin, Yanan and Wiedemann, Nina and Nespoli, Lorenzo and Medici, Vasco and Danalet, Antonin and Raubal, Martin},
+  journal={Transportation Research Part D: Transport and Environment},
+  volume={126},
+  pages={104014},
+  year={2024},
+  publisher={Elsevier}
+}
+```
+

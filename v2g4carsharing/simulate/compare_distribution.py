@@ -21,7 +21,7 @@ def compare_nr_reservations(res_real, res_sim, out_path=None):
 
     # plot histogram and simulated value
     plt.figure(figsize=(7, 4))
-    vals, _, fig = plt.hist(res_per_day["reservation_no"], label="Mobility dataset\n(per day)")
+    vals, _, fig = plt.hist(res_per_day["reservation_no"], label="Real dataset\n(per day)")
     plt.plot([len(res_sim), len(res_sim)], [0, np.max(vals)], label="Simulated day", lw=3)
     # plt.title("Number of reservations (z={:.2f})".format(z_value_res), fontsize=18)
     plt.xlabel("Number of reservations (per day)")
@@ -74,10 +74,10 @@ name_mapping = {
 def compare_hist_dist(res_real, res_sim, col_name, res_sim2=None, out_path=None):
     print("Distribution of ", col_name)
     if res_sim2 is not None:
-        names = ["Mobility dataset", "Event-based simulation", "Agent-based simulation"]
+        names = ["Real dataset", "Event-based simulation", "Our agent-based simulation"]
         res_dfs = [res_real, res_sim, res_sim2]
         plt.figure(figsize=(14, 4))
-        nr_subplots = 4
+        nr_subplots = 3
     else:
         names = ["Mobility dataset", "Simulated data"]
         res_dfs = [res_real, res_sim]
@@ -97,7 +97,7 @@ def compare_hist_dist(res_real, res_sim, col_name, res_sim2=None, out_path=None)
             plt.xticks([i * 3600 * 2 for i in range(12)], np.arange(0, 24, 2))
         if col_name in ["reservationfrom", "reservationto"] and col_name + "_sec" in res.columns:
             sim_col_update[col_name] = col_name + "_sec"
-        elif col_name in ["reservationfrom", "reservationto"] and i==1:
+        elif col_name in ["reservationfrom", "reservationto"] and i == 1:
             # need to transform data into secodns for the event based simulator
             res["reservationfrom"] = pd.to_datetime(res["reservationfrom"])
             res["reservationto"] = pd.to_datetime(res["reservationto"])
@@ -246,4 +246,3 @@ def get_real_daily(in_path):
     # compute duration
     res_real["duration"] = (res_real["reservationto"] - res_real["reservationfrom"]) / 60 / 60
     return res_real
-

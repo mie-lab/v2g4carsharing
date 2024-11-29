@@ -49,9 +49,9 @@ if __name__ == "__main__":
         if "test" in out_path and var not in ["reservationfrom"]:
             # start and end times do not make sense without
             continue
-        compare_hist_dist(res_real, res_sim, var, out_path=out_path) 
+        compare_hist_dist(res_real, res_sim, var, out_path=out_path,
         # # To show plot with a comparison of all three, add kw argument:
-        # res_sim2=pd.read_csv("outputs/simulated_car_sharing/xgb_2019_final/sim_reservations.csv", index_col="reservation_no")
+        res_sim2=pd.read_csv("outputs/simulated_car_sharing/xgb_2019_final/sim_reservations.csv", index_col="reservation_no"))
 
     # station distribution for a single real day
     # compare_station_dist_one_day(res_sim, in_path_real, out_path)

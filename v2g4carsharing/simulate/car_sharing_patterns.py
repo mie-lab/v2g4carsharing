@@ -125,7 +125,6 @@ def assign_mode(acts_gdf_mode, station_scenario, mode_choice_function):
     tic = time.time()
     final_modes, final_veh_ids, final_start_station, final_end_station = [], [], [], []
     for idx, row in acts_gdf_mode.iterrows():
-
         # return all cars that are scheduled for return
         number_returned = 0
         for car_return_info in scheduled_car_returns:
@@ -356,4 +355,3 @@ def load_trips(in_path_sim_trips):
     acts_gdf["geom_destination"] = gpd.GeoSeries(acts_gdf["geom_destination"].apply(wkt.loads))
     print("removed nan geometries and loaded geometry, leftover trips:", len(acts_gdf))
     return acts_gdf
-
